@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import './App.css'
 import { ModeSelect } from './components/ModeSelect'
+import { useSkyjoSocket } from './hooks/useSkyjoSocket'
 import { PlayerView } from './views/PlayerView'
 import { TableView } from './views/TableView'
 
@@ -16,7 +17,9 @@ function App() {
     return null
   }, [])
 
-   return (
+  const socket = useSkyjoSocket()
+
+  return (
     <div className="app">
       <header className="app__header">
         <div>
@@ -29,11 +32,12 @@ function App() {
         </div>
       </header>
       <main className="app__main">
-        {mode === 'table' && <TableView />}
-        {mode === 'player' && <PlayerView />}
+        {mode === 'table' && <TableView socket={socket} />}
+        {mode === 'player' && <PlayerView socket={socket} />}
         {!mode && <ModeSelect />}
       </main>
     </div>
   )
 }
+
 export default App
