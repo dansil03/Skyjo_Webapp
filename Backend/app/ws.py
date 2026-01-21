@@ -209,7 +209,7 @@ async def websocket_endpoint(ws: WebSocket):
             # -------------------------
             # DEBUG (dev only)
             # -------------------------
-            DEBUG = False # Toggle this to enable debug features
+            DEBUG = True # Toggle this to enable debug features
             if DEBUG and t == "debug_set_player_grid":
                 token = str(p.get("token", ""))
                 values = p.get("values")
