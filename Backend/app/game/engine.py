@@ -322,6 +322,35 @@ class GameEngine:
         if self.game.phase != Phase.ROUND_OVER:
             self._advance_turn()
 
+    def discard_drawn_and_reveal(self, player_id: str, index: int) -> List[dict]:
+        self._require_not_round_over()
+        self._require_phase(Phase.TURN_RESOLVE)
+        self._require_current_player(player_id)
+
+        g = self.game
+        p = self._get_player(player_id)
+
+        if p.drawn_card is None:
+            raise ValueError("No drawn card to discard")
+        if not (0 <= index < g.grid_size):
+            raise ValueError("Invalid grid index")
+        if p.grid_removed[index]:
+            raise ValueError("Cannot reveal a removed slot")
+        if p.grid_face_up[index]:
+            raise ValueError("Card is already face up")
+
+        g.discard.append(p.drawn_card)
+        p.drawn_card = None
+        p.grid_face_up[index] = True
+
+        removed_events = self._check_and_remove_columns(p)
+
+        self._after_turn_completed(actor_id=player_id)
+        if g.phase != Phase.ROUND_OVER:
+            self._advance_turn()
+
+        return removed_events
+
     def swap_into_grid(self, player_id: str, index: int) -> List[dict]:
         self._require_not_round_over()
         self._require_phase(Phase.TURN_RESOLVE)

@@ -44,6 +44,19 @@ Voorbeeld:
 {"type":"join_game","payload":{"code":"ZG35","name":"Silas"}}
 ```
 
+### 2b) `resume_game`
+Doel: player herbindt aan bestaande game na refresh.
+
+Payload:
+- `code`: string (uppercase)
+- `token`: string
+
+Voorbeeld:
+```json
+{"type":"resume_game","payload":{"code":"ZG35","token":"<token>"}}
+```
+
+
 ### 3) `set_ready`
 Doel: player zet ready/unready (alleen LOBBY).
 
@@ -99,6 +112,18 @@ Payload:
 Voorbeeld:
 ```json
 {"type":"discard_drawn","payload":{"token":"<token>"}}
+```
+
+### 7b) `discard_drawn_and_reveal`
+Doel: current player discards drawn card and reveals a face-down grid card.
+
+Payload:
+- `token`: string
+- `index`: number (0–11)
+
+Voorbeeld:
+```json
+{"type":"discard_drawn_and_reveal","payload":{"token":"<token>","index":4}}
 ```
 
 ### 8) `swap_into_grid`

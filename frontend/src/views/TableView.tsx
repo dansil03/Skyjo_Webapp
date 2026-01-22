@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
-import { useSkyjoSocket } from '../hooks/useSkyjoSocket'
-import { clearTableStorage, loadTableStorage, saveTableStorage } from '../lib/storage'
-import type { GamePublicState, ServerMessage } from '../types/skyjo'
+import { useEffect, useMemo, useState } from 'react'
+import type { useSkyjoSocket } from '../hooks/useSkyjoSocket'
+import { clearTableStorage } from '../lib/storage'
+import type { GamePublicState } from '../types/skyjo'
 import './ViewStyles.css'
 
 type InfoLog = {
@@ -9,38 +9,31 @@ type InfoLog = {
   message: string
 }
 
-export function TableView() {
-  const stored = loadTableStorage()
-  const [code, setCode] = useState(stored.code)
-  const [publicState, setPublicState] = useState<GamePublicState | null>(null)
+type TableViewProps = {
+  socket: ReturnType<typeof useSkyjoSocket>
+  publicState: GamePublicState | null
+  tableCode: string | null
+  lastInfo: string | null
+  lastError: string | null
+  onClearTableCode: () => void
+}
+
+export function TableView({
+  socket,
+  publicState,
+  tableCode,
+  lastInfo,
+  lastError,
+  onClearTableCode,
+}: TableViewProps) {
   const [infoLog, setInfoLog] = useState<InfoLog[]>([])
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const handleMessage = (message: ServerMessage) => {
-    if (message.type === 'table_created') {
-      setCode(message.payload.code)
-      saveTableStorage({ code: message.payload.code })
+  useEffect(() => {
+    if (!lastInfo) {
       return
     }
-    if (message.type === 'game_public_state') {
-      setPublicState(message.payload.game)
-      return
-    }
-    if (message.type === 'info') {
-      setInfoLog((prev) => [
-        { id: crypto.randomUUID(), message: message.payload.message },
-        ...prev,
-      ])
-      return
-    }
-    if (message.type === 'error') {
-      setErrorMessage(message.payload.message)
-    }
-  }
-
-  const { status, sendMessage, lastError } = useSkyjoSocket({
-    onMessage: handleMessage,
-  })
+    setInfoLog((prev) => [{ id: crypto.randomUUID(), message: lastInfo }, ...prev])
+  }, [lastInfo])
 
   const players = useMemo(() => publicState?.players ?? [], [publicState])
 
@@ -52,17 +45,24 @@ export function TableView() {
           <p>Use this screen to create a table and monitor the public state.</p>
         </div>
         <div className="status">
-          <span className={`status__dot status__dot--${status}`} />
-          <span>{status}</span>
+          <span className={`status__dot status__dot--${socket.status}`} />
+          <span>{socket.status}</span>
         </div>
       </header>
 
       <div className="grid">
         <div className="card">
           <h3>Table setup</h3>
-          <p className="muted">Stored join code: {code ?? '—'}</p>
+          <p className="muted">Stored join code: {tableCode ?? '—'}</p>
           <div className="actions">
-            <button onClick={() => sendMessage({ type: 'create_table', payload: {} })}>
+            <button
+              onClick={() => {
+                if (!tableCode) {
+                  socket.sendMessage({ type: 'create_table', payload: {} })
+                }
+              }}
+              disabled={Boolean(tableCode)}
+            >
               Create table
             </button>
             <button
@@ -70,15 +70,13 @@ export function TableView() {
               className="button--ghost"
               onClick={() => {
                 clearTableStorage()
-                setCode(null)
+                onClearTableCode()
               }}
             >
               Clear stored code
             </button>
           </div>
-          {(errorMessage || lastError) && (
-            <p className="error">{errorMessage ?? lastError}</p>
-          )}
+          {lastError && <p className="error">{lastError}</p>}
         </div>
 
         <div className="card">

@@ -9,6 +9,7 @@ export type GamePhase =
 export type ClientMessage =
   | { type: 'create_table'; payload: Record<string, never> }
   | { type: 'join_game'; payload: { code: string; name: string } }
+  | { type: 'resume_game'; payload: { code: string; token: string } }
   | { type: 'set_ready'; payload: { token: string; ready: boolean } }
   | { type: 'setup_reveal'; payload: { token: string; index: number } }
   | { type: 'draw_from_deck'; payload: { token: string } }

@@ -197,6 +197,34 @@ async def websocket_endpoint(ws: WebSocket):
                 continue
 
             # -------------------------
+            # RESUME game (player reconnect)
+            # -------------------------
+            if t == "resume_game":
+                code = str(p.get("code", "")).strip().upper()
+                token = str(p.get("token", "")).strip()
+
+                try:
+                    engine = store.get_game(code)
+                except Exception as e:
+                    await _send(ws, "error", {"message": f"Resume failed: {e}"})
+                    continue
+
+                try:
+                    player_id = engine.player_id_from_token(token)
+                except Exception:
+                    await _send(ws, "error", {"message": "Invalid token"})
+                    continue
+
+                ws.state.code = code
+                ws.state.player_id = player_id
+                store.register_socket(code, ws)
+
+                await _send(ws, "player_private_state", engine.private_state(player_id))
+                await _broadcast(code, "game_public_state", engine.public_state())
+                continue
+
+
+            # -------------------------
             # Must be bound to a game
             # -------------------------
             code = ws.state.code
@@ -333,6 +361,39 @@ async def websocket_endpoint(ws: WebSocket):
                     continue
 
                 await _refresh_all(code, engine)
+                await _broadcast_engine_events(code, engine)
+
+                if engine.game.phase.value == "ROUND_OVER":
+                    await _refresh_all(code, engine)
+
+                # ✅ deterministisch einde
+                await _broadcast(code, "game_public_state", engine.public_state())
+                continue
+
+            # -------------------------
+            # TURN: discard drawn card and reveal
+            # -------------------------
+            if t == "discard_drawn_and_reveal":
+                token = str(p.get("token", ""))
+                index = int(p.get("index", -1))
+
+                try:
+                    player_id = engine.player_id_from_token(token)
+                    removed_events = engine.discard_drawn_and_reveal(player_id, index)
+                except Exception as e:
+                    await _send(ws, "error", {"message": str(e)})
+                    continue
+
+                await _refresh_all(code, engine)
+
+                if removed_events:
+                    player_name = engine._get_player(player_id).name
+                    for ev in removed_events:
+                        await _broadcast(code, "info", {
+                            "message": f"Column removed for {player_name} (value {ev['value']})",
+                            "event": {"type": "column_removed", "playerId": player_id, **ev}
+                        })
+
                 await _broadcast_engine_events(code, engine)
 
                 if engine.game.phase.value == "ROUND_OVER":
