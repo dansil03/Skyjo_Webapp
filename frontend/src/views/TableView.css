@@ -1,0 +1,211 @@
+.table-view {
+  position: fixed;
+  inset: 0;
+  background-image: url('../assets/wood-table.svg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  font-family: 'Comic Sans MS', 'Trebuchet MS', cursive;
+  color: #2b1c12;
+  overflow: hidden;
+}
+
+.table-view__setup {
+  position: absolute;
+  top: 40px;
+  left: 55px;
+  width: 310px;
+  padding: 22px 24px 20px;
+  border-radius: 26px;
+  background: #d9d9d9;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.18);
+}
+
+.table-view__title {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.table-view__code {
+  margin: 0 0 16px;
+  font-size: 16px;
+}
+
+.table-view__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.table-view__button {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid #5a5a5a;
+  background: #e6e6e6;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #2b1c12;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.table-view__button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.table-view__error {
+  margin-top: 14px;
+  color: #9b1c1c;
+  font-size: 13px;
+}
+
+.table-view__scoreboard {
+  position: absolute;
+  top: 35px;
+  right: 55px;
+  width: 400px;
+}
+
+.table-view__scoreboard table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: #fdfdfd;
+  border: 2px solid #3f3f3f;
+}
+
+.table-view__scoreboard th,
+.table-view__scoreboard td {
+  border: 1px solid #5a5a5a;
+  text-align: center;
+  height: 26px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.scoreboard__corner {
+  width: 32px;
+  background: #f5f5f5;
+}
+
+.scoreboard__header {
+  background: #f8f8f8;
+}
+
+.scoreboard__row-label {
+  background: #cfcfcf;
+  width: 32px;
+}
+
+.scoreboard__cell {
+  background: #ffffff;
+}
+
+.scoreboard__cell--alt {
+  background: #dcdcdc;
+}
+
+.table-view__status {
+  position: absolute;
+  left: 140px;
+  top: 320px;
+  font-size: 20px;
+  color: #2b1c12;
+}
+
+.table-view__cards {
+  position: absolute;
+  left: 60px;
+  top: 365px;
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+.table-view__debug {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  font-size: 14px;
+  color: #2b1c12;
+  background: rgba(217, 217, 217, 0.85);
+  padding: 6px 10px;
+  border-radius: 12px;
+}
+
+.table-card {
+  width: 190px;
+  height: 270px;
+  padding: 8px;
+  border-radius: 20px;
+  border: 0 solid transparent;
+  background: #ffffff;
+  box-shadow: 0 8px 14px rgba(0, 0, 0, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.table-card--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.table-card--locked {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.table-card--pile {
+  border-width: 0;
+}
+
+.table-card--selected {
+  border-width: 10px;
+}
+
+.table-card--swap {
+  border-color: #1aa01f;
+}
+
+.table-card--reveal {
+  border-color: #c41212;
+}
+
+.table-card__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 14px;
+}
+
+.table-view__clear {
+  align-self: center;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid #5a5a5a;
+  background: #e6e6e6;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #2b1c12;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+@media (max-width: 1100px) {
+  .table-view {
+    transform: scale(0.85);
+    transform-origin: top left;
+  }
+}
+
+@media (max-width: 900px) {
+  .table-view {
+    transform: scale(0.72);
+    transform-origin: top left;
+  }
+}
