@@ -15,6 +15,7 @@ export type ClientMessage =
   | { type: 'draw_from_deck'; payload: { token: string } }
   | { type: 'take_discard'; payload: { token: string } }
   | { type: 'discard_drawn'; payload: { token: string } }
+  | { type: 'discard_drawn_and_reveal'; payload: { token: string; index: number } }
   | { type: 'swap_into_grid'; payload: { token: string; index: number } }
   | { type: 'start_new_round'; payload: { token: string } }
 

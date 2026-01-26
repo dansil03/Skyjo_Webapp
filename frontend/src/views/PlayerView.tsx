@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { useSkyjoSocket } from '../hooks/useSkyjoSocket'
-import { clearPlayerStorage, loadPlayerStorage } from '../lib/storage'
+import {
+  clearPlayerStorage,
+  loadPlayerStorage,
+  loadTableSelection,
+  saveTableSelection,
+  type TableSelectionState,
+} from '../lib/storage'
 import type { GamePublicState, PlayerPrivateState } from '../types/skyjo'
 import './ViewStyles.css'
 
@@ -46,7 +52,11 @@ export function PlayerView({
   const [indexInput, setIndexInput] = useState('0')
   const [infoLog, setInfoLog] = useState<InfoLog[]>([])
   const hasResumedRef = useRef(false)
-  const [isRevealMode, setIsRevealMode] = useState(false)
+  const [tableSelection, setTableSelection] = useState<TableSelectionState>(() =>
+    loadTableSelection(),
+  )
+  const previousPlayerId = useRef<string | null>(publicState?.currentPlayerId ?? null)
+  const lastSentSelection = useRef<string | null>(null)
   const { status, sendMessage } = socket
 
   useEffect(() => {
@@ -64,12 +74,12 @@ export function PlayerView({
     if (status !== 'open' || hasResumedRef.current) {
       return
     }
-    sendMessage({
+    sendMessageWithLog({
       type: 'resume_game',
       payload: { code: playerSession.code, token: playerSession.token },
     })
     hasResumedRef.current = true
-  }, [playerSession?.code, playerSession?.token, sendMessage, status])
+  }, [playerSession?.code, playerSession?.token, sendMessageWithLog, status])
 
   const isMyTurn = useMemo(() => {
     if (!publicState?.currentPlayerId || !playerSession?.playerId) {
@@ -80,31 +90,120 @@ export function PlayerView({
 
   const phase = publicState?.phase
   const isTurnPhase = phase === 'TURN_CHOOSE_SOURCE' || phase === 'TURN_RESOLVE'
+  const canChooseSource =
+    phase === 'TURN_CHOOSE_SOURCE' && isMyTurn && Boolean(playerSession?.token)
 
   const parsedIndex = Number(indexInput)
   const isValidIndex = Number.isInteger(parsedIndex) && parsedIndex >= 0 && parsedIndex < GRID_SIZE
-  const canDiscardAndReveal =
-    phase === 'TURN_RESOLVE' && privateState?.drawnCard !== null && Boolean(playerSession?.token)
+  const canResolveTurn =
+    phase === 'TURN_RESOLVE' && isMyTurn && privateState?.drawnCard !== null
+  const canGridAction = canResolveTurn && tableSelection.selectedSource !== null
+
+  const sendMessageWithLog = useCallback(
+    (message: Parameters<typeof sendMessage>[0]) => {
+      console.log('[PlayerView] sending message', message)
+      sendMessage(message)
+    },
+    [sendMessage],
+  )
+
+  const updateTableSelection = useCallback((selection: TableSelectionState) => {
+    setTableSelection(selection)
+    saveTableSelection(selection)
+  }, [])
 
   useEffect(() => {
-    if (phase !== 'TURN_RESOLVE' || privateState?.drawnCard === null) {
-      setIsRevealMode(false)
+    const handleStorage = () => {
+      setTableSelection(loadTableSelection())
     }
-  }, [phase, privateState?.drawnCard])
+    window.addEventListener('storage', handleStorage)
+    return () => {
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [])
+
+  useEffect(() => {
+    console.log('[PlayerView] phase/current/selection', {
+      phase,
+      currentPlayerId: publicState?.currentPlayerId ?? null,
+      playerId: playerSession?.playerId ?? null,
+      selection: tableSelection,
+    })
+  }, [phase, publicState?.currentPlayerId, playerSession?.playerId, tableSelection])
+
+  useEffect(() => {
+    if (phase !== 'TURN_CHOOSE_SOURCE') {
+      updateTableSelection({ selectedSource: null, deckMode: 'swap', locked: false })
+      previousPlayerId.current = publicState?.currentPlayerId ?? null
+      lastSentSelection.current = null
+      return
+    }
+    if (
+      previousPlayerId.current &&
+      previousPlayerId.current !== (publicState?.currentPlayerId ?? null)
+    ) {
+      updateTableSelection({ selectedSource: null, deckMode: 'swap', locked: false })
+      lastSentSelection.current = null
+    }
+    previousPlayerId.current = publicState?.currentPlayerId ?? null
+  }, [phase, publicState?.currentPlayerId, updateTableSelection])
+
+  useEffect(() => {
+    if (!tableSelection.selectedSource || !tableSelection.locked) {
+      return
+    }
+    if (!canChooseSource || !playerSession?.token) {
+      return
+    }
+    const selectionKey = `${tableSelection.selectedSource}-${publicState?.currentPlayerId ?? 'none'}-${phase}`
+    if (lastSentSelection.current === selectionKey) {
+      return
+    }
+    lastSentSelection.current = selectionKey
+    if (tableSelection.selectedSource === 'deck') {
+      sendMessageWithLog({ type: 'draw_from_deck', payload: { token: playerSession.token } })
+      return
+    }
+    sendMessageWithLog({ type: 'take_discard', payload: { token: playerSession.token } })
+  }, [
+    canChooseSource,
+    phase,
+    playerSession?.token,
+    publicState?.currentPlayerId,
+    tableSelection.locked,
+    tableSelection.selectedSource,
+  ])
 
   const handleGridClick = (index: number) => {
-    if (!isRevealMode || !playerSession?.token) {
+    if (!playerSession?.token || !canResolveTurn) {
       return
     }
     const cell = privateState?.grid?.[index]
-    if (!cell || cell.isRemoved || cell.isFaceUp) {
+    if (!cell || cell.isRemoved) {
       return
     }
-    sendMessage({
-      type: 'discard_drawn_and_reveal',
-      payload: { token: playerSession.token, index },
-    })
-    setIsRevealMode(false)
+    if (!tableSelection.selectedSource) {
+      return
+    }
+    if (
+      tableSelection.selectedSource === 'deck' &&
+      tableSelection.deckMode === 'reveal' &&
+      !cell.isFaceUp
+    ) {
+      sendMessageWithLog({
+        type: 'discard_drawn_and_reveal',
+        payload: { token: playerSession.token, index },
+      })
+      updateTableSelection({ selectedSource: null, deckMode: 'swap', locked: false })
+      return
+    }
+    if (tableSelection.deckMode === 'swap') {
+      sendMessageWithLog({
+        type: 'swap_into_grid',
+        payload: { token: playerSession.token, index },
+      })
+      updateTableSelection({ selectedSource: null, deckMode: 'swap', locked: false })
+    }
   }
 
   return (
@@ -146,7 +245,7 @@ export function PlayerView({
               className="stack"
               onSubmit={(event) => {
                 event.preventDefault()
-                sendMessage({ type: 'join_game', payload: { code, name: playerName } })
+                sendMessageWithLog({ type: 'join_game', payload: { code, name: playerName } })
               }}
             >
               <label className="field">
@@ -209,7 +308,7 @@ export function PlayerView({
               type="button"
               onClick={() =>
                 playerSession?.token &&
-                sendMessage({
+                sendMessageWithLog({
                   type: 'set_ready',
                   payload: { token: playerSession.token, ready: true },
                 })
@@ -222,7 +321,7 @@ export function PlayerView({
               type="button"
               onClick={() =>
                 playerSession?.token &&
-                sendMessage({
+                sendMessageWithLog({
                   type: 'set_ready',
                   payload: { token: playerSession.token, ready: false },
                 })
@@ -239,30 +338,12 @@ export function PlayerView({
               />
             </div>
             <div className="actions">
-              {phase === 'TURN_RESOLVE' && privateState?.drawnCard !== null && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    playerSession?.token &&
-                    isMyTurn &&
-                    setIsRevealMode(true)
-                  }
-                  disabled={!canDiscardAndReveal || !isMyTurn}
-                >
-                  {isRevealMode ? 'Choose a card to reveal' : 'Discard + Reveal'}
-                </button>
-              )}
-              {isRevealMode && (
-                <button type="button" className="button--ghost" onClick={() => setIsRevealMode(false)}>
-                  Cancel reveal
-                </button>
-              )}
               <button
                 type="button"
                 onClick={() =>
                   playerSession?.token &&
                   isValidIndex &&
-                  sendMessage({
+                  sendMessageWithLog({
                     type: 'setup_reveal',
                     payload: { token: playerSession.token, index: parsedIndex },
                   })
@@ -271,45 +352,35 @@ export function PlayerView({
               >
                 Reveal card
               </button>
-              <button
-                type="button"
-                onClick={() =>
-                  playerSession?.token &&
-                  isValidIndex &&
-                  sendMessage({
-                    type: 'swap_into_grid',
-                    payload: { token: playerSession.token, index: parsedIndex },
-                  })
-                }
-                disabled={!playerSession?.token || !isValidIndex || (isTurnPhase && !isMyTurn)}
-              >
-                Swap into grid
-              </button>
             </div>
             <div className="actions">
               <button
                 type="button"
-                onClick={() =>
-                  playerSession?.token &&
-                  sendMessage({
+                onClick={() => {
+                  if (!canChooseSource || !playerSession?.token) {
+                    return
+                  }
+                  sendMessageWithLog({
                     type: 'draw_from_deck',
                     payload: { token: playerSession.token },
                   })
-                }
-                disabled={!playerSession?.token || (isTurnPhase && !isMyTurn)}
+                }}
+                disabled={!canChooseSource}
               >
                 Draw from deck
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  playerSession?.token &&
-                  sendMessage({
+                onClick={() => {
+                  if (!canChooseSource || !playerSession?.token) {
+                    return
+                  }
+                  sendMessageWithLog({
                     type: 'take_discard',
                     payload: { token: playerSession.token },
                   })
-                }
-                disabled={!playerSession?.token || (isTurnPhase && !isMyTurn)}
+                }}
+                disabled={!canChooseSource}
               >
                 Take discard
               </button>
@@ -317,26 +388,31 @@ export function PlayerView({
             <div className="actions">
               <button
                 type="button"
-                onClick={() =>
-                  playerSession?.token &&
-                  sendMessage({
+                onClick={() => {
+                  if (!playerSession?.token || !canResolveTurn) {
+                    return
+                  }
+                  sendMessageWithLog({
                     type: 'discard_drawn',
                     payload: { token: playerSession.token },
                   })
-                }
-                disabled={!playerSession?.token || (isTurnPhase && !isMyTurn)}
+                  updateTableSelection({ selectedSource: null, deckMode: 'swap', locked: false })
+                }}
+                disabled={!playerSession?.token || !canResolveTurn}
               >
                 Discard drawn card
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  playerSession?.token &&
-                  sendMessage({
+                onClick={() => {
+                  if (!playerSession?.token || (isTurnPhase && !isMyTurn)) {
+                    return
+                  }
+                  sendMessageWithLog({
                     type: 'start_new_round',
                     payload: { token: playerSession.token },
                   })
-                }
+                }}
                 disabled={!playerSession?.token || (isTurnPhase && !isMyTurn)}
               >
                 Start new round
@@ -356,8 +432,8 @@ export function PlayerView({
                     cell.isRemoved ? 'grid-cards__cell--removed' : ''
                   }`}
                   onClick={() => handleGridClick(cell.i)}
-                  role={isRevealMode ? 'button' : undefined}
-                  tabIndex={isRevealMode ? 0 : -1}
+                  role={canGridAction ? 'button' : undefined}
+                  tabIndex={canGridAction ? 0 : -1}
                 >
                   <span className="grid-cards__index">{cell.i}</span>
                   <strong>

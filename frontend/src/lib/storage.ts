@@ -9,6 +9,12 @@ type TableStorage = {
   code: string | null
 }
 
+export type TableSelectionState = {
+  selectedSource: 'deck' | 'discard' | null
+  deckMode: 'swap' | 'reveal'
+  locked: boolean
+}
+
 const PLAYER_KEYS = {
   token: 'skyjo.player.token',
   playerId: 'skyjo.player.playerId',
@@ -18,6 +24,7 @@ const PLAYER_KEYS = {
 
 const TABLE_KEYS = {
   code: 'skyjo.table.code',
+  selection: 'skyjo.table.selection',
 }
 
 export function loadPlayerStorage(): PlayerStorage {
@@ -62,6 +69,43 @@ export function saveTableStorage(values: Partial<TableStorage>) {
 
 export function clearTableStorage() {
   Object.values(TABLE_KEYS).forEach((key) => window.localStorage.removeItem(key))
+}
+
+export function loadTableSelection(): TableSelectionState {
+  if (typeof window === 'undefined') {
+    return { selectedSource: null, deckMode: 'swap', locked: false }
+  }
+  try {
+    const stored = window.localStorage.getItem(TABLE_KEYS.selection)
+    if (!stored) {
+      return { selectedSource: null, deckMode: 'swap', locked: false }
+    }
+    const parsed = JSON.parse(stored) as TableSelectionState
+    if (
+      parsed &&
+      (parsed.selectedSource === 'deck' ||
+        parsed.selectedSource === 'discard' ||
+        parsed.selectedSource === null) &&
+      (parsed.deckMode === 'swap' || parsed.deckMode === 'reveal') &&
+      typeof parsed.locked === 'boolean'
+    ) {
+      return {
+        selectedSource: parsed.selectedSource,
+        deckMode: parsed.deckMode,
+        locked: parsed.locked,
+      }
+    }
+  } catch {
+    return { selectedSource: null, deckMode: 'swap', locked: false }
+  }
+  return { selectedSource: null, deckMode: 'swap', locked: false }
+}
+
+export function saveTableSelection(selection: TableSelectionState) {
+  if (typeof window === 'undefined') {
+    return
+  }
+  window.localStorage.setItem(TABLE_KEYS.selection, JSON.stringify(selection))
 }
 
 function saveValue(key: string, value: string | null | undefined) {

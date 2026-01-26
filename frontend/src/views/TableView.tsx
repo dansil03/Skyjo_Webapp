@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { useSkyjoSocket } from '../hooks/useSkyjoSocket'
-import { clearTableStorage } from '../lib/storage'
+import { clearTableStorage, loadTableSelection, saveTableSelection } from '../lib/storage'
 import type { GamePublicState } from '../types/skyjo'
 import './TableView.css'
 
@@ -12,13 +12,6 @@ type TableViewProps = {
   lastError: string | null
   onClearTableCode: () => void
 }
-
-type SelectionState = {
-  selectedSource: 'deck' | 'discard' | null
-  deckMode: 'swap' | 'reveal'
-}
-
-const selectionStorageKey = 'skyjo.table.selection'
 
 const cardImageMap = Object.fromEntries(
   Object.entries(
@@ -32,31 +25,6 @@ const cardImageMap = Object.fromEntries(
   }),
 ) as Record<string, string>
 
-const getStoredSelection = (): SelectionState => {
-  if (typeof window === 'undefined') {
-    return { selectedSource: null, deckMode: 'swap' }
-  }
-  try {
-    const stored = window.localStorage.getItem(selectionStorageKey)
-    if (!stored) {
-      return { selectedSource: null, deckMode: 'swap' }
-    }
-    const parsed = JSON.parse(stored) as SelectionState
-    if (
-      parsed &&
-      (parsed.selectedSource === 'deck' ||
-        parsed.selectedSource === 'discard' ||
-        parsed.selectedSource === null) &&
-      (parsed.deckMode === 'swap' || parsed.deckMode === 'reveal')
-    ) {
-      return { selectedSource: parsed.selectedSource, deckMode: parsed.deckMode }
-    }
-  } catch {
-    return { selectedSource: null, deckMode: 'swap' }
-  }
-  return { selectedSource: null, deckMode: 'swap' }
-}
-
 export function TableView({
   socket,
   publicState,
@@ -64,33 +32,51 @@ export function TableView({
   lastError,
   onClearTableCode,
 }: TableViewProps) {
-  const [selection, setSelection] = useState<SelectionState>(() => getStoredSelection())
+  const [selection, setSelection] = useState(() => loadTableSelection())
 
-  // ✅ Let op: publicState is GamePublicState, dus currentPlayerId zit direct op publicState
+  // ✅ Let op: publicState is GamePublicState
   const phase = publicState?.phase ?? 'LOBBY'
   const currentPlayerId = publicState?.currentPlayerId ?? null
-  const canChooseSource = phase === 'TURN_CHOOSE_SOURCE'
-  const isLocked = selection.selectedSource !== null
+  const canChooseSource = phase === 'TURN_CHOOSE_SOURCE' && Boolean(currentPlayerId)
+  const isLocked = selection.locked
 
-  // ✅ init ref met juiste shape
   const previousPlayerId = useRef<string | null>(currentPlayerId)
 
   useEffect(() => {
-    window.localStorage.setItem(selectionStorageKey, JSON.stringify(selection))
+    saveTableSelection(selection)
   }, [selection])
 
-  // Reset selection wanneer:
-  // - we NIET in TURN_CHOOSE_SOURCE zitten
-  // - of currentPlayerId wisselt (nieuwe beurt)
+  // Sync selection between tabs/devices (storage event fires in other tabs)
+  useEffect(() => {
+    const handleStorage = () => {
+      setSelection(loadTableSelection())
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => {
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [])
+
+  useEffect(() => {
+    console.log('[TableView] phase/current/selection', {
+      phase,
+      currentPlayerId,
+      selection,
+    })
+  }, [phase, currentPlayerId, selection])
+
+  // Reset selection when:
+  // - phase != TURN_CHOOSE_SOURCE
+  // - OR turn changes (currentPlayerId changes)
   useEffect(() => {
     if (phase !== 'TURN_CHOOSE_SOURCE') {
-      setSelection({ selectedSource: null, deckMode: 'swap' })
+      setSelection({ selectedSource: null, deckMode: 'swap', locked: false })
       previousPlayerId.current = currentPlayerId
       return
     }
 
     if (previousPlayerId.current && previousPlayerId.current !== currentPlayerId) {
-      setSelection({ selectedSource: null, deckMode: 'swap' })
+      setSelection({ selectedSource: null, deckMode: 'swap', locked: false })
     }
     previousPlayerId.current = currentPlayerId
   }, [phase, currentPlayerId])
@@ -112,11 +98,8 @@ export function TableView({
   const deckImage = cardImageMap['Rückseite']
 
   const discardKey = publicState?.discardTop ?? null
-  const discardImage =
-    discardKey !== null ? cardImageMap[String(discardKey)] : deckImage
+  const discardImage = discardKey !== null ? cardImageMap[String(discardKey)] : deckImage
 
-  // In jouw Figma: als je deck kiest, toon je de rug in de selectie-slot (swap/reveal toggle)
-  // Als je discard kiest, toon je de open kaart.
   const selectedImage = selection.selectedSource === 'discard' ? discardImage : deckImage
 
   const selectedSlotClassName = selection.selectedSource
@@ -191,8 +174,8 @@ export function TableView({
       <div className="table-view__cards">
         <div className="table-view__debug">
           Phase: {phase} | currentPlayerId: {currentPlayerId ?? '-'} | deckCount:{' '}
-          {publicState?.deckCount ?? '-'} | discardTop:{' '}
-          {publicState?.discardTop ?? 'null'}
+          {publicState?.deckCount ?? '-'} | discardTop: {publicState?.discardTop ?? 'null'} | selection:{' '}
+          {JSON.stringify(selection)}
         </div>
 
         {/* DECK */}
@@ -202,7 +185,8 @@ export function TableView({
           } ${isLocked && selection.selectedSource !== 'deck' ? 'table-card--locked' : ''}`}
           onClick={() => {
             if (!canChooseSource || isLocked) return
-            setSelection({ selectedSource: 'deck', deckMode: 'swap' })
+            setSelection({ selectedSource: 'deck', deckMode: 'swap', locked: true })
+            console.log('[TableView] selected source deck')
           }}
           type="button"
           disabled={!canChooseSource || (isLocked && selection.selectedSource !== 'deck')}
@@ -217,7 +201,8 @@ export function TableView({
           } ${isLocked && selection.selectedSource !== 'discard' ? 'table-card--locked' : ''}`}
           onClick={() => {
             if (!canChooseSource || isLocked) return
-            setSelection({ selectedSource: 'discard', deckMode: 'swap' })
+            setSelection({ selectedSource: 'discard', deckMode: 'swap', locked: true })
+            console.log('[TableView] selected source discard')
           }}
           type="button"
           disabled={!canChooseSource || (isLocked && selection.selectedSource !== 'discard')}
@@ -234,22 +219,14 @@ export function TableView({
               setSelection((prev) => ({
                 selectedSource: prev.selectedSource,
                 deckMode: prev.deckMode === 'swap' ? 'reveal' : 'swap',
+                locked: prev.locked,
               }))
+              console.log('[TableView] toggled deck mode')
             }}
             type="button"
             aria-pressed={selection.deckMode === 'reveal'}
           >
             <img className="table-card__image" src={selectedImage} alt="Ausgewählte Karte" />
-          </button>
-        )}
-
-        {isLocked && (
-          <button
-            className="table-view__clear"
-            onClick={() => setSelection({ selectedSource: null, deckMode: 'swap' })}
-            type="button"
-          >
-            Auswahl löschen
           </button>
         )}
       </div>
