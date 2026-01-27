@@ -97,7 +97,7 @@ export function TableView({
   useEffect(() => {
     if (phase !== 'TURN_CHOOSE_SOURCE' && phase !== 'TURN_RESOLVE') {
       // Root cause: stale localStorage selection can leak into non-turn phases, showing a third slot.
-      setSelection({ selectedSource: null, deckMode: 'swap', locked: false })
+      setSelection({ selectedSource: null, deckMode: 'swap', locked: false, selectedValue: null })
       previousPlayerId.current = currentPlayerId
       previousPhase.current = phase
       return
@@ -109,11 +109,11 @@ export function TableView({
       previousPhase.current !== 'TURN_RESOLVE'
     ) {
       // Root cause: entering TURN_CHOOSE_SOURCE from setup left a previous selection visible.
-      setSelection({ selectedSource: null, deckMode: 'swap', locked: false })
+      setSelection({ selectedSource: null, deckMode: 'swap', locked: false, selectedValue: null })
     }
 
     if (previousPlayerId.current && previousPlayerId.current !== currentPlayerId) {
-      setSelection({ selectedSource: null, deckMode: 'swap', locked: false })
+      setSelection({ selectedSource: null, deckMode: 'swap', locked: false, selectedValue: null })
     }
     previousPlayerId.current = currentPlayerId
     previousPhase.current = phase
@@ -134,8 +134,39 @@ export function TableView({
   const discardKey = publicState?.discardTop ?? null
   const discardImage = discardKey !== null ? cardImageMap[String(discardKey)] : deckImage
 
-  // Root cause: selected slot must reflect current publicState.discardTop or stay unknown for deck.
-  const selectedImage = selection.selectedSource === 'discard' ? discardImage : deckImage
+  const selectedImage = (() => {
+    if (selection.selectedSource === 'discard') {
+      if (selection.selectedValue !== null) {
+        const imageKey = String(selection.selectedValue)
+        const image = cardImageMap[imageKey]
+        if (!image) {
+          console.debug('[TableView] missing card image for selection', {
+            missingKey: imageKey,
+            availableKeys: Object.keys(cardImageMap),
+          })
+        }
+        return image ?? deckImage
+      }
+      return deckImage
+    }
+
+    if (selection.selectedSource === 'deck') {
+      if (publicState?.tableDrawnCard !== null) {
+        const imageKey = String(publicState.tableDrawnCard)
+        const image = cardImageMap[imageKey]
+        if (!image) {
+          console.debug('[TableView] missing card image for tableDrawnCard', {
+            missingKey: imageKey,
+            availableKeys: Object.keys(cardImageMap),
+          })
+        }
+        return image ?? deckImage
+      }
+      return deckImage
+    }
+
+    return deckImage
+  })()
 
   const selectedSlotClassName = selection.selectedSource
     ? `table-card table-card--selected ${
@@ -269,7 +300,12 @@ export function TableView({
           } ${isLocked && selection.selectedSource !== 'deck' ? 'table-card--locked' : ''}`}
           onClick={() => {
             if (!canChooseSource || isLocked) return
-            setSelection({ selectedSource: 'deck', deckMode: 'swap', locked: true })
+            setSelection({
+              selectedSource: 'deck',
+              deckMode: 'swap',
+              locked: true,
+              selectedValue: null,
+            })
             console.log('[TableView] selected source deck')
           }}
           type="button"
@@ -285,7 +321,12 @@ export function TableView({
           } ${isLocked && selection.selectedSource !== 'discard' ? 'table-card--locked' : ''}`}
           onClick={() => {
             if (!canChooseSource || isLocked) return
-            setSelection({ selectedSource: 'discard', deckMode: 'swap', locked: true })
+            setSelection({
+              selectedSource: 'discard',
+              deckMode: 'swap',
+              locked: true,
+              selectedValue: publicState?.discardTop ?? null,
+            })
             console.log('[TableView] selected source discard')
           }}
           type="button"
@@ -305,6 +346,7 @@ export function TableView({
                 selectedSource: prev.selectedSource,
                 deckMode: prev.deckMode === 'swap' ? 'reveal' : 'swap',
                 locked: prev.locked,
+                selectedValue: prev.selectedValue,
               }))
               console.log('[TableView] toggled deck mode')
             }}

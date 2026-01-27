@@ -222,7 +222,7 @@ Wordt gebroadcast naar alle sockets in dezelfde game (table + players).
 
 Echt voorbeeld (ws_create_and_join_test.py):
 ```json
-{"type":"game_public_state","payload":{"game":{"id":"ae085b0b7c0e4c4d9ce24921bec667f1","code":"ZG35","phase":"LOBBY","deckCount":0,"discardTop":null,"currentPlayerId":null,"finalRound":false,"finisherId":null,"lastTurnsRemaining":0,"roundScores":null,"finisherDoubled":null,"roundIndex":1,"totalScores":{},"winnerId":null,"rankedTotals":null,"players":[{"id":"5c6d075fca39","name":"Silas","ready":false,"revealedCount":0,"removedCount":0}]}}}
+{"type":"game_public_state","payload":{"game":{"id":"ae085b0b7c0e4c4d9ce24921bec667f1","code":"ZG35","phase":"LOBBY","deckCount":0,"discardTop":null,"tableDrawnCard":null,"currentPlayerId":null,"finalRound":false,"finisherId":null,"lastTurnsRemaining":0,"roundScores":null,"finisherDoubled":null,"roundIndex":1,"totalScores":{},"winnerId":null,"rankedTotals":null,"players":[{"id":"5c6d075fca39","name":"Silas","ready":false,"revealedCount":0,"removedCount":0}]}}}
 ```
 
 #### Public state schema (belangrijkste velden)
@@ -233,6 +233,7 @@ Echt voorbeeld (ws_create_and_join_test.py):
 - `phase`: string
 - `deckCount`: number
 - `discardTop`: number | null
+- `tableDrawnCard`: number | null
 - `currentPlayerId`: string | null
 - `finalRound`: boolean
 - `finisherId`: string | null
@@ -253,7 +254,7 @@ Echt voorbeeld (ws_create_and_join_test.py):
 ### E) `game_public_state` — SETUP_REVEAL voorbeeld
 Echt voorbeeld (ws_start_and_reveal_test.py, game start):
 ```json
-{"type":"game_public_state","payload":{"game":{"id":"1fe1aa47fb074ef68fd194b1cd5a7a54","code":"C8HT","phase":"SETUP_REVEAL","deckCount":50,"discardTop":7,"currentPlayerId":"301ebf06537d","finalRound":false,"finisherId":null,"lastTurnsRemaining":0,"roundScores":null,"finisherDoubled":null,"roundIndex":1,"totalScores":{"301ebf06537d":0,"6a88e6ea0313":0},"winnerId":null,"rankedTotals":null,"players":[{"id":"301ebf06537d","name":"Silas","ready":true,"revealedCount":0,"removedCount":0},{"id":"6a88e6ea0313","name":"Player2","ready":true,"revealedCount":0,"removedCount":0}]}}}
+{"type":"game_public_state","payload":{"game":{"id":"1fe1aa47fb074ef68fd194b1cd5a7a54","code":"C8HT","phase":"SETUP_REVEAL","deckCount":50,"discardTop":7,"tableDrawnCard":null,"currentPlayerId":"301ebf06537d","finalRound":false,"finisherId":null,"lastTurnsRemaining":0,"roundScores":null,"finisherDoubled":null,"roundIndex":1,"totalScores":{"301ebf06537d":0,"6a88e6ea0313":0},"winnerId":null,"rankedTotals":null,"players":[{"id":"301ebf06537d","name":"Silas","ready":true,"revealedCount":0,"removedCount":0},{"id":"6a88e6ea0313","name":"Player2","ready":true,"revealedCount":0,"removedCount":0}]}}}
 ```
 
 ---
@@ -261,7 +262,7 @@ Echt voorbeeld (ws_start_and_reveal_test.py, game start):
 ### F) `game_public_state` — TURN_CHOOSE_SOURCE voorbeeld
 Echt voorbeeld (ws_start_and_reveal_test.py, setup klaar):
 ```json
-{"type":"game_public_state","payload":{"game":{"id":"1fe1aa47fb074ef68fd194b1cd5a7a54","code":"C8HT","phase":"TURN_CHOOSE_SOURCE","deckCount":50,"discardTop":7,"currentPlayerId":"301ebf06537d","finalRound":false,"finisherId":null,"lastTurnsRemaining":0,"roundScores":null,"finisherDoubled":null,"roundIndex":1,"totalScores":{"301ebf06537d":0,"6a88e6ea0313":0},"winnerId":null,"rankedTotals":null,"players":[{"id":"301ebf06537d","name":"Silas","ready":true,"revealedCount":2,"removedCount":0},{"id":"6a88e6ea0313","name":"Player2","ready":true,"revealedCount":2,"removedCount":0}]}}}
+{"type":"game_public_state","payload":{"game":{"id":"1fe1aa47fb074ef68fd194b1cd5a7a54","code":"C8HT","phase":"TURN_CHOOSE_SOURCE","deckCount":50,"discardTop":7,"tableDrawnCard":null,"currentPlayerId":"301ebf06537d","finalRound":false,"finisherId":null,"lastTurnsRemaining":0,"roundScores":null,"finisherDoubled":null,"roundIndex":1,"totalScores":{"301ebf06537d":0,"6a88e6ea0313":0},"winnerId":null,"rankedTotals":null,"players":[{"id":"301ebf06537d","name":"Silas","ready":true,"revealedCount":2,"removedCount":0},{"id":"6a88e6ea0313","name":"Player2","ready":true,"revealedCount":2,"removedCount":0}]}}}
 ```
 
 ---
@@ -340,6 +341,7 @@ Voorbeeld (generiek):
 
 4) **Nullability**
 - `discardTop` kan `null` in LOBBY
+- `tableDrawnCard` is `null` tenzij current player een deckkaart heeft getrokken
 - `currentPlayerId` kan `null` in LOBBY
 - `roundScores` en `finisherDoubled` zijn `null` tenzij `phase == ROUND_OVER`
 - `winnerId` en `rankedTotals` zijn `null` tenzij `phase == GAME_OVER`

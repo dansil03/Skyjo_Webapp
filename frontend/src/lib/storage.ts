@@ -13,6 +13,7 @@ export type TableSelectionState = {
   selectedSource: 'deck' | 'discard' | null
   deckMode: 'swap' | 'reveal'
   locked: boolean
+  selectedValue: number | null
 }
 
 const PLAYER_KEYS = {
@@ -101,14 +102,18 @@ export function clearTableStorage() {
 
 export function loadTableSelection(): TableSelectionState {
   if (typeof window === 'undefined') {
-    return { selectedSource: null, deckMode: 'swap', locked: false }
+    return { selectedSource: null, deckMode: 'swap', locked: false, selectedValue: null }
   }
   try {
     const stored = window.localStorage.getItem(TABLE_KEYS.selection)
     if (!stored) {
-      return { selectedSource: null, deckMode: 'swap', locked: false }
+      return { selectedSource: null, deckMode: 'swap', locked: false, selectedValue: null }
     }
     const parsed = JSON.parse(stored) as TableSelectionState
+    const selectedValue =
+      typeof parsed.selectedValue === 'number' || parsed.selectedValue === null
+        ? parsed.selectedValue
+        : null
     if (
       parsed &&
       (parsed.selectedSource === 'deck' ||
@@ -121,12 +126,13 @@ export function loadTableSelection(): TableSelectionState {
         selectedSource: parsed.selectedSource,
         deckMode: parsed.deckMode,
         locked: parsed.locked,
+        selectedValue,
       }
     }
   } catch {
-    return { selectedSource: null, deckMode: 'swap', locked: false }
+    return { selectedSource: null, deckMode: 'swap', locked: false, selectedValue: null }
   }
-  return { selectedSource: null, deckMode: 'swap', locked: false }
+  return { selectedSource: null, deckMode: 'swap', locked: false, selectedValue: null }
 }
 
 export function saveTableSelection(selection: TableSelectionState) {
