@@ -38,6 +38,7 @@ export type GamePublicState = {
   phase: GamePhase
   deckCount: number
   discardTop: number | null
+  tableDrawnCard: number | null
   currentPlayerId: string | null
   finalRound: boolean
   finisherId: string | null

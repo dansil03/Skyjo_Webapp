@@ -81,6 +81,7 @@ class GameEngine:
 
         g.deck = _build_skyjo_deck()
         g.discard = []
+        g.table_drawn_card = None
 
         for p in g.players:
             p.has_finished_round = False
@@ -91,6 +92,7 @@ class GameEngine:
             p.setup_reveals_done = 0
 
         g.discard.append(self._draw())
+        g.table_drawn_card = None
         g.current_player_idx = 0
         g.phase = Phase.SETUP_REVEAL
         return True
@@ -174,6 +176,7 @@ class GameEngine:
                 "phase": g.phase.value,
                 "deckCount": len(g.deck),
                 "discardTop": g.discard[-1] if g.discard else None,
+                "tableDrawnCard": g.table_drawn_card if g.phase == Phase.TURN_RESOLVE else None,
                 "currentPlayerId": current_id,
                 "finalRound": g.final_round,
                 "finisherId": g.finisher_id,
@@ -287,6 +290,7 @@ class GameEngine:
             raise ValueError("You already have a drawn card")
 
         p.drawn_card = self._draw()
+        self.game.table_drawn_card = p.drawn_card
         self.game.phase = Phase.TURN_RESOLVE
         return p.drawn_card
 
@@ -303,6 +307,7 @@ class GameEngine:
             raise ValueError("You already have a drawn card")
 
         p.drawn_card = self.game.discard.pop()
+        self.game.table_drawn_card = None
         self.game.phase = Phase.TURN_RESOLVE
         return p.drawn_card
 
@@ -316,6 +321,7 @@ class GameEngine:
             raise ValueError("No drawn card to discard")
 
         self.game.discard.append(p.drawn_card)
+        self.game.table_drawn_card = None
         p.drawn_card = None
 
         self._after_turn_completed(actor_id=player_id)
@@ -340,6 +346,7 @@ class GameEngine:
             raise ValueError("Card is already face up")
 
         g.discard.append(p.drawn_card)
+        g.table_drawn_card = None
         p.drawn_card = None
         p.grid_face_up[index] = True
 
@@ -368,6 +375,7 @@ class GameEngine:
 
         old = p.grid_values[index]
         p.grid_values[index] = p.drawn_card
+        g.table_drawn_card = None
         p.drawn_card = None
 
         p.grid_face_up[index] = True
@@ -432,6 +440,7 @@ class GameEngine:
         g.round_scores = scores
         g.finisher_doubled = finisher_doubled
         g.last_round_finisher_id = g.finisher_id
+        g.table_drawn_card = None
         g.phase = Phase.ROUND_OVER
 
         self._events.append({
@@ -494,6 +503,7 @@ class GameEngine:
         threshold = self._game_over_threshold()
         if any(score >= threshold for score in g.total_scores.values()):
             g.phase = Phase.GAME_OVER
+            g.table_drawn_card = None
             winner_id, ranked_totals = self._compute_winner_and_ranking()
 
             self._events.append({
@@ -516,6 +526,7 @@ class GameEngine:
         # new deck/discard
         g.deck = _build_skyjo_deck()
         g.discard = []
+        g.table_drawn_card = None
 
         for p in g.players:
             self._reset_player_for_new_round(p)
