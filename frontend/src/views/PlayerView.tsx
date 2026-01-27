@@ -94,7 +94,7 @@ export function PlayerView({
     hasResumedRef.current = true
   }, [playerSession?.code, playerSession?.token, sendMessageWithLog, status])
 
-  useEffect(() => {
+    useEffect(() => {
     const handleStorage = () => {
       setTableSelection(loadTableSelection())
     }
@@ -105,6 +105,7 @@ export function PlayerView({
   }, [])
 
   const currentPlayerId = privateMeta?.currentPlayerId ?? publicState?.currentPlayerId ?? null
+
   const isMyTurn = useMemo(() => {
     if (!currentPlayerId || !playerSession?.playerId) {
       return false
@@ -118,13 +119,14 @@ export function PlayerView({
 
   const canResolveTurn =
     phase === 'TURN_RESOLVE' && isMyTurn && privateState?.drawnCard !== null
+
   const hasSelection = tableSelection.selectedSource !== null
   const canGridAction = canResolveTurn && hasSelection
   const setupRevealsDone = privateState?.setupRevealsDone ?? 0
   const canSetupReveal =
     phase === 'SETUP_REVEAL' && Boolean(playerSession?.token) && setupRevealsDone < 2
 
-  const backImage = cardImageMap['Rückseite']
+    const backImage = cardImageMap['Rückseite']
   const points = useMemo(() => {
     if (!privateState?.grid) {
       return 0
@@ -144,6 +146,7 @@ export function PlayerView({
     if (phase === 'SETUP_REVEAL') {
       return 'Decke 2 Karten auf'
     }
+
     if (phase === 'TURN_CHOOSE_SOURCE' || phase === 'TURN_RESOLVE') {
       if (!isMyTurn) {
         return 'Warte…'
@@ -162,7 +165,8 @@ export function PlayerView({
     return ''
   }, [isMyTurn, phase, tableSelection.selectedSource])
 
-  const showActionCue = isMyTurn && hasSelection && phase === 'TURN_RESOLVE'
+  const showActionCue = isMyTurn && hasSelection && phase === 'TURN_RESOLVE'    
+
 
   useEffect(() => {
     console.log('[PlayerView] phase/current/selection', {
@@ -222,7 +226,6 @@ export function PlayerView({
     if (!cell || cell.isRemoved) {
       return
     }
-
     if (canSetupReveal && !cell.isFaceUp) {
       sendMessageWithLog({
         type: 'setup_reveal',

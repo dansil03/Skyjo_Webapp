@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { useSkyjoSocket } from '../hooks/useSkyjoSocket'
 import {
   clearTableStorage,
-  loadPlayerTokenForGame,
+  loadPlayerStorage,
   loadTableSelection,
   saveTableSelection,
 } from '../lib/storage'
@@ -38,6 +38,7 @@ export function TableView({
   onClearTableCode,
 }: TableViewProps) {
   const [selection, setSelection] = useState(() => loadTableSelection())
+  const [storedPlayer, setStoredPlayer] = useState(() => loadPlayerStorage())
 
   // ✅ Let op: publicState is GamePublicState
   const phase = publicState?.phase ?? 'LOBBY'
@@ -55,6 +56,7 @@ export function TableView({
   useEffect(() => {
     const handleStorage = () => {
       setSelection(loadTableSelection())
+      setStoredPlayer(loadPlayerStorage())
     }
     window.addEventListener('storage', handleStorage)
     return () => {
@@ -182,8 +184,8 @@ export function TableView({
           <ul className="table-view__ready-list">
             {players.length === 0 && <li className="table-view__ready-item">Noch keine Spieler.</li>}
             {players.map((player) => {
-              const token = loadPlayerTokenForGame(tableCode, player.id)
-              const hasToken = Boolean(token)
+              const hasToken =
+                storedPlayer.playerId === player.id && Boolean(storedPlayer.token)
               return (
                 <li key={player.id} className="table-view__ready-item">
                   <span className="table-view__ready-name">{player.name}</span>
@@ -195,12 +197,12 @@ export function TableView({
                       type="button"
                       className="table-view__ready-button"
                       onClick={() => {
-                        if (!token || player.ready) {
+                        if (!storedPlayer.token || player.ready) {
                           return
                         }
                         socket.sendMessage({
                           type: 'set_ready',
-                          payload: { token, ready: true },
+                          payload: { token: storedPlayer.token, ready: true },
                         })
                       }}
                       disabled={player.ready}
