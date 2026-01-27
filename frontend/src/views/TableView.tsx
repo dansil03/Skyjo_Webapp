@@ -49,6 +49,7 @@ export function TableView({
   const isLocked = selection.locked
 
   const previousPlayerId = useRef<string | null>(currentPlayerId)
+  const previousPhase = useRef<string>(phase)
 
   useEffect(() => {
     saveTableSelection(selection)
@@ -75,35 +76,51 @@ export function TableView({
   }, [])
 
   useEffect(() => {
-    console.log('[TableView] phase/current/selection', {
+    console.log('[TableView] phase/selection', {
       phase,
-      currentPlayerId,
-      selection,
+      discardTop: publicState?.discardTop ?? null,
+      selectedSource: selection.selectedSource,
+      deckMode: selection.deckMode,
+      locked: selection.locked,
     })
-  }, [phase, currentPlayerId, selection])
+  }, [
+    phase,
+    publicState?.discardTop,
+    selection.selectedSource,
+    selection.deckMode,
+    selection.locked,
+  ])
 
   // Reset selection when:
   // - phase not in TURN_CHOOSE_SOURCE / TURN_RESOLVE
   // - OR turn changes (currentPlayerId changes)
   useEffect(() => {
     if (phase !== 'TURN_CHOOSE_SOURCE' && phase !== 'TURN_RESOLVE') {
+      // Root cause: stale localStorage selection can leak into non-turn phases, showing a third slot.
       setSelection({ selectedSource: null, deckMode: 'swap', locked: false })
       previousPlayerId.current = currentPlayerId
+      previousPhase.current = phase
       return
+    }
+
+    if (
+      phase === 'TURN_CHOOSE_SOURCE' &&
+      previousPhase.current !== 'TURN_CHOOSE_SOURCE' &&
+      previousPhase.current !== 'TURN_RESOLVE'
+    ) {
+      // Root cause: entering TURN_CHOOSE_SOURCE from setup left a previous selection visible.
+      setSelection({ selectedSource: null, deckMode: 'swap', locked: false })
     }
 
     if (previousPlayerId.current && previousPlayerId.current !== currentPlayerId) {
       setSelection({ selectedSource: null, deckMode: 'swap', locked: false })
     }
     previousPlayerId.current = currentPlayerId
+    previousPhase.current = phase
   }, [phase, currentPlayerId])
 
   const players = useMemo(() => publicState?.players ?? [], [publicState])
-  const playerCount = Math.min(players.length, 4)
-  const playerColumns = useMemo(
-    () => Array.from({ length: playerCount }, (_, i) => i),
-    [playerCount],
-  )
+  const playersToShow = useMemo(() => players.slice(0, 4), [players])
   const rows = useMemo(() => Array.from({ length: 10 }, (_, i) => i + 1), [])
 
   const currentPlayerName = useMemo(() => {
@@ -117,6 +134,7 @@ export function TableView({
   const discardKey = publicState?.discardTop ?? null
   const discardImage = discardKey !== null ? cardImageMap[String(discardKey)] : deckImage
 
+  // Root cause: selected slot must reflect current publicState.discardTop or stay unknown for deck.
   const selectedImage = selection.selectedSource === 'discard' ? discardImage : deckImage
 
   const selectedSlotClassName = selection.selectedSource
@@ -163,9 +181,9 @@ export function TableView({
           <thead>
             <tr>
               <th className="scoreboard__corner" />
-              {playerColumns.map((index) => (
-                <th key={`header-${index}`} className="scoreboard__header">
-                  P{index + 1}
+              {playersToShow.map((player) => (
+                <th key={`header-${player.id}`} className="scoreboard__header">
+                  {player.name}
                 </th>
               ))}
             </tr>
@@ -174,9 +192,9 @@ export function TableView({
             {rows.map((row) => (
               <tr key={`row-${row}`}>
                 <th className="scoreboard__row-label">{row}</th>
-                {playerColumns.map((col) => (
+                {playersToShow.map((player, col) => (
                   <td
-                    key={`cell-${row}-${col}`}
+                    key={`cell-${row}-${player.id}`}
                     className={`scoreboard__cell ${col % 2 === 1 ? 'scoreboard__cell--alt' : ''}`}
                   />
                 ))}
@@ -273,6 +291,7 @@ export function TableView({
           type="button"
           disabled={!canChooseSource || (isLocked && selection.selectedSource !== 'discard')}
         >
+          {/* Root cause: discard image must always come from publicState.discardTop (no cached state). */}
           <img className="table-card__image" src={discardImage} alt="Ablagestapel" />
         </button>
 
