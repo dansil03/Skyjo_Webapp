@@ -30,6 +30,10 @@ const cardImageMap = Object.fromEntries(
   }),
 ) as Record<string, string>
 
+type SelectionWithValue = ReturnType<typeof loadTableSelection> & {
+  selectedValue?: number | null
+}
+
 export function TableView({
   socket,
   publicState,
@@ -37,12 +41,11 @@ export function TableView({
   lastError,
   onClearTableCode,
 }: TableViewProps) {
-  const [selection, setSelection] = useState(() => loadTableSelection())
+  const [selection, setSelection] = useState<SelectionWithValue>(() => loadTableSelection() as any)
 
   // Force rerender when player mirror updates (same-tab scenario) or selection updates from other tabs.
   const [, forceRerender] = useState(0)
 
-  // ✅ Let op: publicState is GamePublicState
   const phase = publicState?.phase ?? 'LOBBY'
   const currentPlayerId = publicState?.currentPlayerId ?? null
   const canChooseSource = phase === 'TURN_CHOOSE_SOURCE' && Boolean(currentPlayerId)
@@ -52,51 +55,27 @@ export function TableView({
   const previousPhase = useRef<string>(phase)
 
   useEffect(() => {
-    saveTableSelection(selection)
+    saveTableSelection(selection as any)
   }, [selection])
 
-  // Sync selection between tabs/devices (storage event fires in other tabs)
   useEffect(() => {
     const handleStorage = () => {
-      setSelection(loadTableSelection())
-      // NOTE: player-mirror changes are also in localStorage, so rerender helps reflect buttons.
+      setSelection(loadTableSelection() as any)
       forceRerender((x) => x + 1)
     }
     window.addEventListener('storage', handleStorage)
-    return () => {
-      window.removeEventListener('storage', handleStorage)
-    }
+    return () => window.removeEventListener('storage', handleStorage)
   }, [])
 
-  // Same-tab updates: App dispatches this after saving mirror.
   useEffect(() => {
     const handleMirror = () => forceRerender((x) => x + 1)
     window.addEventListener('skyjo-player-mirror', handleMirror as EventListener)
     return () => window.removeEventListener('skyjo-player-mirror', handleMirror as EventListener)
   }, [])
 
-  useEffect(() => {
-    console.log('[TableView] phase/selection', {
-      phase,
-      discardTop: publicState?.discardTop ?? null,
-      selectedSource: selection.selectedSource,
-      deckMode: selection.deckMode,
-      locked: selection.locked,
-    })
-  }, [
-    phase,
-    publicState?.discardTop,
-    selection.selectedSource,
-    selection.deckMode,
-    selection.locked,
-  ])
-
-  // Reset selection when:
-  // - phase not in TURN_CHOOSE_SOURCE / TURN_RESOLVE
-  // - OR turn changes (currentPlayerId changes)
+  // Reset selection on phase changes / turn changes
   useEffect(() => {
     if (phase !== 'TURN_CHOOSE_SOURCE' && phase !== 'TURN_RESOLVE') {
-      // Root cause: stale localStorage selection can leak into non-turn phases, showing a third slot.
       setSelection({ selectedSource: null, deckMode: 'swap', locked: false, selectedValue: null })
       previousPlayerId.current = currentPlayerId
       previousPhase.current = phase
@@ -108,13 +87,13 @@ export function TableView({
       previousPhase.current !== 'TURN_CHOOSE_SOURCE' &&
       previousPhase.current !== 'TURN_RESOLVE'
     ) {
-      // Root cause: entering TURN_CHOOSE_SOURCE from setup left a previous selection visible.
       setSelection({ selectedSource: null, deckMode: 'swap', locked: false, selectedValue: null })
     }
 
     if (previousPlayerId.current && previousPlayerId.current !== currentPlayerId) {
       setSelection({ selectedSource: null, deckMode: 'swap', locked: false, selectedValue: null })
     }
+
     previousPlayerId.current = currentPlayerId
     previousPhase.current = phase
   }, [phase, currentPlayerId])
@@ -129,25 +108,33 @@ export function TableView({
     return match?.name ?? '—'
   }, [players, currentPlayerId])
 
-  const deckImage = cardImageMap['Rückseite']
+  const deckBackImage = cardImageMap['Rückseite']
 
-  const discardKey = publicState?.discardTop ?? null
-  const discardImage = discardKey !== null ? cardImageMap[String(discardKey)] : deckImage
+  const discardTop = publicState?.discardTop ?? null
+  const discardImage = discardTop !== null ? cardImageMap[String(discardTop)] : deckBackImage
 
-  const selectedImage = (() => {
-    if (selection.selectedValue !== null) {
-      const imageKey = String(selection.selectedValue)
-      const image = cardImageMap[imageKey]
-      if (!image) {
-        console.debug('[TableView] missing card image for selection', {
-          missingKey: imageKey,
-          availableKeys: Object.keys(cardImageMap),
-        })
-      }
-      return image ?? deckImage
+  const tableDrawnCard = publicState?.tableDrawnCard ?? null
+  const deckPreviewImage = useMemo(() => {
+    if (tableDrawnCard === null) return deckBackImage
+    return cardImageMap[String(tableDrawnCard)] ?? deckBackImage
+  }, [tableDrawnCard, deckBackImage])
+
+  // ✅ KEY FIX:
+  // if we have a cached selectedValue (e.g. discard we picked), always show that in the selected slot.
+  const selectedImage = useMemo(() => {
+    if (selection.selectedValue !== undefined && selection.selectedValue !== null) {
+      return cardImageMap[String(selection.selectedValue)] ?? deckBackImage
     }
-    return deckImage
-  })()
+    if (selection.selectedSource === 'discard') return discardImage
+    if (selection.selectedSource === 'deck') return deckPreviewImage
+    return deckBackImage
+  }, [
+    selection.selectedValue,
+    selection.selectedSource,
+    discardImage,
+    deckPreviewImage,
+    deckBackImage,
+  ])
 
   const selectedSlotClassName = selection.selectedSource
     ? `table-card table-card--selected ${
@@ -166,9 +153,7 @@ export function TableView({
           <button
             className="table-view__button"
             onClick={() => {
-              if (!tableCode) {
-                socket.sendMessage({ type: 'create_table', payload: {} })
-              }
+              if (!tableCode) socket.sendMessage({ type: 'create_table', payload: {} })
             }}
             disabled={Boolean(tableCode)}
           >
@@ -224,16 +209,8 @@ export function TableView({
           <ul className="table-view__ready-list">
             {players.length === 0 && <li className="table-view__ready-item">Noch keine Spieler.</li>}
             {players.map((player) => {
-              const tokenForPlayer =
-                tableCode ? loadPlayerTokenForGame(tableCode, player.id) : null
+              const tokenForPlayer = tableCode ? loadPlayerTokenForGame(tableCode, player.id) : null
               const hasToken = Boolean(tokenForPlayer)
-
-              // Debug to confirm mirror reading:
-              console.debug('[TableView] tokenForPlayer', {
-                tableCode,
-                playerId: player.id,
-                hasToken,
-              })
 
               return (
                 <li key={player.id} className="table-view__ready-item">
@@ -268,12 +245,6 @@ export function TableView({
       )}
 
       <div className="table-view__cards">
-        <div className="table-view__debug">
-          Phase: {phase} | currentPlayerId: {currentPlayerId ?? '-'} | deckCount:{' '}
-          {publicState?.deckCount ?? '-'} | discardTop: {publicState?.discardTop ?? 'null'} |
-          selection: {JSON.stringify(selection)}
-        </div>
-
         {/* DECK */}
         <button
           className={`table-card table-card--pile ${
@@ -281,18 +252,12 @@ export function TableView({
           } ${isLocked && selection.selectedSource !== 'deck' ? 'table-card--locked' : ''}`}
           onClick={() => {
             if (!canChooseSource || isLocked) return
-            setSelection({
-              selectedSource: 'deck',
-              deckMode: 'swap',
-              locked: true,
-              selectedValue: null,
-            })
-            console.log('[TableView] selected source deck')
+            setSelection({ selectedSource: 'deck', deckMode: 'swap', locked: true, selectedValue: null })
           }}
           type="button"
           disabled={!canChooseSource || (isLocked && selection.selectedSource !== 'deck')}
         >
-          <img className="table-card__image" src={deckImage} alt="Deck" />
+          <img className="table-card__image" src={deckBackImage} alt="Deck" />
         </button>
 
         {/* DISCARD */}
@@ -302,18 +267,17 @@ export function TableView({
           } ${isLocked && selection.selectedSource !== 'discard' ? 'table-card--locked' : ''}`}
           onClick={() => {
             if (!canChooseSource || isLocked) return
+            // ✅ cache the discardTop we are taking, so UI stays correct after discardTop changes
             setSelection({
               selectedSource: 'discard',
               deckMode: 'swap',
               locked: true,
-              selectedValue: publicState?.discardTop ?? null,
+              selectedValue: discardTop,
             })
-            console.log('[TableView] selected source discard')
           }}
           type="button"
           disabled={!canChooseSource || (isLocked && selection.selectedSource !== 'discard')}
         >
-          {/* Root cause: discard image must always come from publicState.discardTop (no cached state). */}
           <img className="table-card__image" src={discardImage} alt="Ablagestapel" />
         </button>
 
@@ -324,12 +288,9 @@ export function TableView({
             onClick={() => {
               if (selection.selectedSource !== 'deck') return
               setSelection((prev) => ({
-                selectedSource: prev.selectedSource,
+                ...prev,
                 deckMode: prev.deckMode === 'swap' ? 'reveal' : 'swap',
-                locked: prev.locked,
-                selectedValue: prev.selectedValue,
               }))
-              console.log('[TableView] toggled deck mode')
             }}
             type="button"
             aria-pressed={selection.deckMode === 'reveal'}
