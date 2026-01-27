@@ -66,10 +66,10 @@ export function TableView({
   }, [phase, currentPlayerId, selection])
 
   // Reset selection when:
-  // - phase != TURN_CHOOSE_SOURCE
+  // - phase not in TURN_CHOOSE_SOURCE / TURN_RESOLVE
   // - OR turn changes (currentPlayerId changes)
   useEffect(() => {
-    if (phase !== 'TURN_CHOOSE_SOURCE') {
+    if (phase !== 'TURN_CHOOSE_SOURCE' && phase !== 'TURN_RESOLVE') {
       setSelection({ selectedSource: null, deckMode: 'swap', locked: false })
       previousPlayerId.current = currentPlayerId
       return
