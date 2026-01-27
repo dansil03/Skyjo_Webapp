@@ -135,36 +135,17 @@ export function TableView({
   const discardImage = discardKey !== null ? cardImageMap[String(discardKey)] : deckImage
 
   const selectedImage = (() => {
-    if (selection.selectedSource === 'discard') {
-      if (selection.selectedValue !== null) {
-        const imageKey = String(selection.selectedValue)
-        const image = cardImageMap[imageKey]
-        if (!image) {
-          console.debug('[TableView] missing card image for selection', {
-            missingKey: imageKey,
-            availableKeys: Object.keys(cardImageMap),
-          })
-        }
-        return image ?? deckImage
+    if (selection.selectedValue !== null) {
+      const imageKey = String(selection.selectedValue)
+      const image = cardImageMap[imageKey]
+      if (!image) {
+        console.debug('[TableView] missing card image for selection', {
+          missingKey: imageKey,
+          availableKeys: Object.keys(cardImageMap),
+        })
       }
-      return deckImage
+      return image ?? deckImage
     }
-
-    if (selection.selectedSource === 'deck') {
-      if (publicState?.tableDrawnCard !== null) {
-        const imageKey = String(publicState.tableDrawnCard)
-        const image = cardImageMap[imageKey]
-        if (!image) {
-          console.debug('[TableView] missing card image for tableDrawnCard', {
-            missingKey: imageKey,
-            availableKeys: Object.keys(cardImageMap),
-          })
-        }
-        return image ?? deckImage
-      }
-      return deckImage
-    }
-
     return deckImage
   })()
 
