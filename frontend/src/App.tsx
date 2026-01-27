@@ -72,6 +72,7 @@ function App() {
           name: playerName,
         }
         savePlayerStorage(session)
+        savePlayerMirror(session)
         setPlayerSession(session)
         return
       }
