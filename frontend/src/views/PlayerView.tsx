@@ -179,13 +179,23 @@ export function PlayerView({
 
   useEffect(() => {
     if (phase !== 'TURN_CHOOSE_SOURCE' && phase !== 'TURN_RESOLVE') {
-      updateTableSelection({ selectedSource: null, deckMode: 'swap', locked: false })
+      updateTableSelection({
+        selectedSource: null,
+        deckMode: 'swap',
+        locked: false,
+        selectedValue: null,
+      })
       previousPlayerId.current = currentPlayerId
       lastSentSelection.current = null
       return
     }
     if (previousPlayerId.current && previousPlayerId.current !== currentPlayerId) {
-      updateTableSelection({ selectedSource: null, deckMode: 'swap', locked: false })
+      updateTableSelection({
+        selectedSource: null,
+        deckMode: 'swap',
+        locked: false,
+        selectedValue: null,
+      })
       lastSentSelection.current = null
     }
     previousPlayerId.current = currentPlayerId
@@ -247,7 +257,12 @@ export function PlayerView({
         type: 'discard_drawn_and_reveal',
         payload: { token: playerSession.token, index },
       })
-      updateTableSelection({ selectedSource: null, deckMode: 'swap', locked: false })
+      updateTableSelection({
+        selectedSource: null,
+        deckMode: 'swap',
+        locked: false,
+        selectedValue: null,
+      })
       return
     }
 
@@ -256,7 +271,12 @@ export function PlayerView({
         type: 'swap_into_grid',
         payload: { token: playerSession.token, index },
       })
-      updateTableSelection({ selectedSource: null, deckMode: 'swap', locked: false })
+      updateTableSelection({
+        selectedSource: null,
+        deckMode: 'swap',
+        locked: false,
+        selectedValue: null,
+      })
     }
   }
 
@@ -336,7 +356,12 @@ export function PlayerView({
               return
             }
             sendMessageWithLog({ type: 'discard_drawn', payload: { token: playerSession.token } })
-            updateTableSelection({ selectedSource: null, deckMode: 'swap', locked: false })
+            updateTableSelection({
+              selectedSource: null,
+              deckMode: 'swap',
+              locked: false,
+              selectedValue: null,
+            })
           }}
         >
           Discard drawn
