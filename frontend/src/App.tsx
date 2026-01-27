@@ -2,8 +2,14 @@ import { useCallback, useMemo, useState } from 'react'
 import './App.css'
 import { ModeSelect } from './components/ModeSelect'
 import { useSkyjoSocket } from './hooks/useSkyjoSocket'
-import { loadPlayerStorage, loadTableStorage, savePlayerStorage, saveTableStorage } from './lib/storage'
-import type { GamePublicState, PlayerPrivateState, ServerMessage } from './types/skyjo'
+import {
+  loadPlayerStorage,
+  loadTableStorage,
+  savePlayerMirror,
+  savePlayerStorage,
+  saveTableStorage,
+} from './lib/storage'
+import type { GameMeta, GamePublicState, PlayerPrivateState, ServerMessage } from './types/skyjo'
 import { PlayerView } from './views/PlayerView'
 import { TableView } from './views/TableView'
 
@@ -31,6 +37,7 @@ function App() {
 
   const [publicState, setPublicState] = useState<GamePublicState | null>(null)
   const [privateState, setPrivateState] = useState<PlayerPrivateState | null>(null)
+  const [privateMeta, setPrivateMeta] = useState<GameMeta | null>(null)
   const [playerName, setPlayerName] = useState(storedPlayer.name ?? '')
   const [playerSession, setPlayerSession] = useState<PlayerSession | null>(() => {
     if (storedPlayer.token && storedPlayer.playerId && storedPlayer.code) {
@@ -55,6 +62,7 @@ function App() {
       }
       if (message.type === 'player_private_state') {
         setPrivateState(message.payload.me)
+        setPrivateMeta(message.payload.gameMeta)
         return
       }
       if (message.type === 'table_created') {
@@ -70,6 +78,7 @@ function App() {
           name: playerName,
         }
         savePlayerStorage(session)
+        savePlayerMirror(session)
         setPlayerSession(session)
         return
       }
@@ -115,6 +124,7 @@ function App() {
             socket={socket}
             publicState={publicState}
             privateState={privateState}
+            privateMeta={privateMeta}
             playerSession={playerSession}
             playerName={playerName}
             onPlayerNameChange={setPlayerName}

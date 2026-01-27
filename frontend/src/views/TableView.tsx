@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { useSkyjoSocket } from '../hooks/useSkyjoSocket'
-import { clearTableStorage, loadTableSelection, saveTableSelection } from '../lib/storage'
+import {
+  clearTableStorage,
+  loadPlayerTokenForGame,
+  loadTableSelection,
+  saveTableSelection,
+} from '../lib/storage'
 import type { GamePublicState } from '../types/skyjo'
 import './TableView.css'
 
@@ -66,10 +71,10 @@ export function TableView({
   }, [phase, currentPlayerId, selection])
 
   // Reset selection when:
-  // - phase != TURN_CHOOSE_SOURCE
+  // - phase not in TURN_CHOOSE_SOURCE / TURN_RESOLVE
   // - OR turn changes (currentPlayerId changes)
   useEffect(() => {
-    if (phase !== 'TURN_CHOOSE_SOURCE') {
+    if (phase !== 'TURN_CHOOSE_SOURCE' && phase !== 'TURN_RESOLVE') {
       setSelection({ selectedSource: null, deckMode: 'swap', locked: false })
       previousPlayerId.current = currentPlayerId
       return
@@ -170,6 +175,47 @@ export function TableView({
       </div>
 
       <div className="table-view__status">{currentPlayerName} ist an der Reihe</div>
+
+      {phase === 'LOBBY' && (
+        <div className="table-view__ready">
+          <h3 className="table-view__ready-title">Start game / Ready</h3>
+          <ul className="table-view__ready-list">
+            {players.length === 0 && <li className="table-view__ready-item">Noch keine Spieler.</li>}
+            {players.map((player) => {
+              const token = loadPlayerTokenForGame(tableCode, player.id)
+              const hasToken = Boolean(token)
+              return (
+                <li key={player.id} className="table-view__ready-item">
+                  <span className="table-view__ready-name">{player.name}</span>
+                  <span className="table-view__ready-state">
+                    {player.ready ? 'bereit' : 'nicht bereit'}
+                  </span>
+                  {hasToken ? (
+                    <button
+                      type="button"
+                      className="table-view__ready-button"
+                      onClick={() => {
+                        if (!token || player.ready) {
+                          return
+                        }
+                        socket.sendMessage({
+                          type: 'set_ready',
+                          payload: { token, ready: true },
+                        })
+                      }}
+                      disabled={player.ready}
+                    >
+                      {player.ready ? 'Bereit' : 'Bereit machen'}
+                    </button>
+                  ) : (
+                    <span className="table-view__ready-readonly">read-only</span>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
 
       <div className="table-view__cards">
         <div className="table-view__debug">

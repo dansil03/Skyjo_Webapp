@@ -116,6 +116,73 @@
   color: #2b1c12;
 }
 
+.table-view__ready {
+  position: absolute;
+  left: 55px;
+  top: 360px;
+  width: 310px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: rgba(217, 217, 217, 0.9);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.18);
+}
+
+.table-view__ready-title {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.table-view__ready-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.table-view__ready-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+}
+
+.table-view__ready-name {
+  font-weight: 600;
+}
+
+.table-view__ready-state {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f0f0f0;
+  border: 1px solid #b7b7b7;
+  font-size: 12px;
+}
+
+.table-view__ready-button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #5a5a5a;
+  background: #e6e6e6;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #2b1c12;
+}
+
+.table-view__ready-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.table-view__ready-readonly {
+  font-size: 12px;
+  color: #6a6a6a;
+}
+
 .table-view__cards {
   position: absolute;
   left: 100px;
