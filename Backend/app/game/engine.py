@@ -30,6 +30,7 @@ class GameEngine:
         )
         self.tokens: Dict[str, str] = {}
         self._events: List[dict] = []
+        self._setup_done_counter = 0
 
     # ---------------------------
     # Event buffer
@@ -82,6 +83,7 @@ class GameEngine:
         g.deck = _build_skyjo_deck()
         g.discard = []
         g.table_drawn_card = None
+        self._setup_done_counter = 0
 
         for p in g.players:
             p.has_finished_round = False
@@ -90,6 +92,8 @@ class GameEngine:
             p.grid_removed = [False] * g.grid_size
             p.drawn_card = None
             p.setup_reveals_done = 0
+            p.setup_revealed_indices = []
+            p.setup_done_order = None
 
         g.discard.append(self._draw())
         g.table_drawn_card = None
@@ -118,13 +122,38 @@ class GameEngine:
 
         p.grid_face_up[index] = True
         p.setup_reveals_done += 1
+        p.setup_revealed_indices.append(index)
+        if p.setup_reveals_done == g.setup_reveals_per_player and p.setup_done_order is None:
+            self._setup_done_counter += 1
+            p.setup_done_order = self._setup_done_counter
 
         removed_events = self._check_and_remove_columns(p)
 
         if self._all_setup_done():
+            g.current_player_idx = self._select_starting_player_after_setup()
             g.phase = Phase.TURN_CHOOSE_SOURCE
 
         return removed_events
+
+    def _select_starting_player_after_setup(self) -> int:
+        g = self.game
+        best_idx = 0
+        best_sum = None
+        best_done_order = None
+        for idx, p in enumerate(g.players):
+            reveal_indices = p.setup_revealed_indices[: g.setup_reveals_per_player]
+            reveal_sum = sum(p.grid_values[i] for i in reveal_indices)
+            done_order = p.setup_done_order if p.setup_done_order is not None else float("inf")
+            if (
+                best_sum is None
+                or reveal_sum > best_sum
+                or (reveal_sum == best_sum and done_order < best_done_order)
+            ):
+                best_sum = reveal_sum
+                best_done_order = done_order
+                best_idx = idx
+        # Tie-break: highest sum, earliest setup completion, then join order.
+        return best_idx
 
     def _all_setup_done(self) -> bool:
         g = self.game
@@ -468,6 +497,8 @@ class GameEngine:
         p.grid_removed = [False] * g.grid_size
         p.drawn_card = None
         p.setup_reveals_done = 0
+        p.setup_revealed_indices = []
+        p.setup_done_order = None
         p.has_finished_round = False
 
     def _game_over_threshold(self) -> int:
@@ -527,6 +558,7 @@ class GameEngine:
         g.deck = _build_skyjo_deck()
         g.discard = []
         g.table_drawn_card = None
+        self._setup_done_counter = 0
 
         for p in g.players:
             self._reset_player_for_new_round(p)
