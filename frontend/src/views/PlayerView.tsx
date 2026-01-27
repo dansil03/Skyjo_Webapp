@@ -188,8 +188,8 @@ export function PlayerView({
       updateTableSelection({ selectedSource: null, deckMode: 'swap', locked: false })
       lastSentSelection.current = null
     }
-    previousPlayerId.current = publicState?.currentPlayerId ?? null
-  }, [phase, publicState?.currentPlayerId, updateTableSelection])
+    previousPlayerId.current = currentPlayerId
+  }, [currentPlayerId, phase, updateTableSelection])
 
   useEffect(() => {
     if (!tableSelection.selectedSource || !tableSelection.locked) {
