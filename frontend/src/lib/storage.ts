@@ -27,32 +27,33 @@ const TABLE_KEYS = {
   selection: 'skyjo.table.selection',
 }
 
+// Player session is stored per-tab in sessionStorage so multiple player tabs can coexist.
 export function loadPlayerStorage(): PlayerStorage {
   return {
-    token: window.localStorage.getItem(PLAYER_KEYS.token),
-    playerId: window.localStorage.getItem(PLAYER_KEYS.playerId),
-    code: window.localStorage.getItem(PLAYER_KEYS.code),
-    name: window.localStorage.getItem(PLAYER_KEYS.name),
+    token: window.sessionStorage.getItem(PLAYER_KEYS.token),
+    playerId: window.sessionStorage.getItem(PLAYER_KEYS.playerId),
+    code: window.sessionStorage.getItem(PLAYER_KEYS.code),
+    name: window.sessionStorage.getItem(PLAYER_KEYS.name),
   }
 }
 
 export function savePlayerStorage(values: Partial<PlayerStorage>) {
   if (values.token !== undefined) {
-    saveValue(PLAYER_KEYS.token, values.token)
+    saveValue(window.sessionStorage, PLAYER_KEYS.token, values.token)
   }
   if (values.playerId !== undefined) {
-    saveValue(PLAYER_KEYS.playerId, values.playerId)
+    saveValue(window.sessionStorage, PLAYER_KEYS.playerId, values.playerId)
   }
   if (values.code !== undefined) {
-    saveValue(PLAYER_KEYS.code, values.code)
+    saveValue(window.sessionStorage, PLAYER_KEYS.code, values.code)
   }
   if (values.name !== undefined) {
-    saveValue(PLAYER_KEYS.name, values.name)
+    saveValue(window.sessionStorage, PLAYER_KEYS.name, values.name)
   }
 }
 
 export function clearPlayerStorage() {
-  Object.values(PLAYER_KEYS).forEach((key) => window.localStorage.removeItem(key))
+  Object.values(PLAYER_KEYS).forEach((key) => window.sessionStorage.removeItem(key))
 }
 
 export function loadTableStorage(): TableStorage {
@@ -63,7 +64,7 @@ export function loadTableStorage(): TableStorage {
 
 export function saveTableStorage(values: Partial<TableStorage>) {
   if (values.code !== undefined) {
-    saveValue(TABLE_KEYS.code, values.code)
+    saveValue(window.localStorage, TABLE_KEYS.code, values.code)
   }
 }
 
@@ -108,10 +109,10 @@ export function saveTableSelection(selection: TableSelectionState) {
   window.localStorage.setItem(TABLE_KEYS.selection, JSON.stringify(selection))
 }
 
-function saveValue(key: string, value: string | null | undefined) {
+function saveValue(storage: Storage, key: string, value: string | null | undefined) {
   if (value === null || value === undefined) {
-    window.localStorage.removeItem(key)
+    storage.removeItem(key)
     return
   }
-  window.localStorage.setItem(key, value)
+  storage.setItem(key, value)
 }
