@@ -27,6 +27,33 @@ const TABLE_KEYS = {
   selection: 'skyjo.table.selection',
 }
 
+type PlayerMirrorSession = {
+  code: string
+  playerId: string
+  token: string
+  name?: string
+}
+
+function playerMirrorTokenKey(code: string, playerId: string) {
+  return `skyjo.players.${code}.token.${playerId}`
+}
+
+export function savePlayerMirror(session: PlayerMirrorSession) {
+  const { code, playerId, token } = session
+  if (!code || !playerId || !token) {
+    return
+  }
+  window.localStorage.setItem(playerMirrorTokenKey(code, playerId), token)
+}
+
+export function loadPlayerTokenForGame(code: string | null, playerId: string): string | null {
+  if (!code) {
+    return null
+  }
+  return window.localStorage.getItem(playerMirrorTokenKey(code, playerId))
+}
+
+
 // Player session is stored per-tab in sessionStorage so multiple player tabs can coexist.
 export function loadPlayerStorage(): PlayerStorage {
   return {

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { useSkyjoSocket } from '../hooks/useSkyjoSocket'
 import {
   clearTableStorage,
-  loadPlayerStorage,
   loadTableSelection,
+  loadPlayerTokenForGame,
   saveTableSelection,
 } from '../lib/storage'
 import type { GamePublicState } from '../types/skyjo'
@@ -38,7 +38,9 @@ export function TableView({
   onClearTableCode,
 }: TableViewProps) {
   const [selection, setSelection] = useState(() => loadTableSelection())
-  const [storedPlayer, setStoredPlayer] = useState(() => loadPlayerStorage())
+
+  // Force rerender when player mirror updates (same-tab scenario) or selection updates from other tabs.
+  const [, forceRerender] = useState(0)
 
   // ✅ Let op: publicState is GamePublicState
   const phase = publicState?.phase ?? 'LOBBY'
@@ -56,12 +58,20 @@ export function TableView({
   useEffect(() => {
     const handleStorage = () => {
       setSelection(loadTableSelection())
-      setStoredPlayer(loadPlayerStorage())
+      // NOTE: player-mirror changes are also in localStorage, so rerender helps reflect buttons.
+      forceRerender((x) => x + 1)
     }
     window.addEventListener('storage', handleStorage)
     return () => {
       window.removeEventListener('storage', handleStorage)
     }
+  }, [])
+
+  // Same-tab updates: App dispatches this after saving mirror.
+  useEffect(() => {
+    const handleMirror = () => forceRerender((x) => x + 1)
+    window.addEventListener('skyjo-player-mirror', handleMirror as EventListener)
+    return () => window.removeEventListener('skyjo-player-mirror', handleMirror as EventListener)
   }, [])
 
   useEffect(() => {
@@ -184,25 +194,33 @@ export function TableView({
           <ul className="table-view__ready-list">
             {players.length === 0 && <li className="table-view__ready-item">Noch keine Spieler.</li>}
             {players.map((player) => {
-              const hasToken =
-                storedPlayer.playerId === player.id && Boolean(storedPlayer.token)
+              const tokenForPlayer =
+                tableCode ? loadPlayerTokenForGame(tableCode, player.id) : null
+              const hasToken = Boolean(tokenForPlayer)
+
+              // Debug to confirm mirror reading:
+              console.debug('[TableView] tokenForPlayer', {
+                tableCode,
+                playerId: player.id,
+                hasToken,
+              })
+
               return (
                 <li key={player.id} className="table-view__ready-item">
                   <span className="table-view__ready-name">{player.name}</span>
                   <span className="table-view__ready-state">
                     {player.ready ? 'bereit' : 'nicht bereit'}
                   </span>
+
                   {hasToken ? (
                     <button
                       type="button"
                       className="table-view__ready-button"
                       onClick={() => {
-                        if (!storedPlayer.token || player.ready) {
-                          return
-                        }
+                        if (!tokenForPlayer || player.ready) return
                         socket.sendMessage({
                           type: 'set_ready',
-                          payload: { token: storedPlayer.token, ready: true },
+                          payload: { token: tokenForPlayer, ready: true },
                         })
                       }}
                       disabled={player.ready}
@@ -222,8 +240,8 @@ export function TableView({
       <div className="table-view__cards">
         <div className="table-view__debug">
           Phase: {phase} | currentPlayerId: {currentPlayerId ?? '-'} | deckCount:{' '}
-          {publicState?.deckCount ?? '-'} | discardTop: {publicState?.discardTop ?? 'null'} | selection:{' '}
-          {JSON.stringify(selection)}
+          {publicState?.deckCount ?? '-'} | discardTop: {publicState?.discardTop ?? 'null'} |
+          selection: {JSON.stringify(selection)}
         </div>
 
         {/* DECK */}

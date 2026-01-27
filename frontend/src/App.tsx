@@ -2,7 +2,13 @@ import { useCallback, useMemo, useState } from 'react'
 import './App.css'
 import { ModeSelect } from './components/ModeSelect'
 import { useSkyjoSocket } from './hooks/useSkyjoSocket'
-import { loadPlayerStorage, loadTableStorage, savePlayerStorage, saveTableStorage } from './lib/storage'
+import {
+  loadPlayerStorage,
+  loadTableStorage,
+  savePlayerStorage,
+  saveTableStorage,
+  savePlayerMirror,
+} from './lib/storage'
 import type { GameMeta, GamePublicState, PlayerPrivateState, ServerMessage } from './types/skyjo'
 import { PlayerView } from './views/PlayerView'
 import { TableView } from './views/TableView'
