@@ -12,7 +12,21 @@ De backend communiceert via **WebSocket**.
 ## Backend
 
 ### WebSocket endpoint
-ws://127.0.0.1:8001/ws
+Standaard: `ws://127.0.0.1:8001/ws`. Je kunt dit overschrijven via `VITE_WS_URL` (bijv. LAN IP) zodat andere apparaten kunnen verbinden.
+
+### Docker (LAN toegang)
+1. Zoek het LAN IP van je host (bijv. `ipconfig` op Windows of `ip a` op Linux/macOS).
+2. Maak een `.env` (zie `.env.example`) met:
+   ```
+   VITE_WS_URL=ws://<LAN_IP>:8001/ws
+   ```
+3. Start containers:
+   ```
+   docker compose up --build
+   ```
+4. Open op andere devices:
+   - Table: `http://<LAN_IP>:5173/?mode=table`
+   - Player: `http://<LAN_IP>:5173/?mode=player`
 
 Tip: draai de backend zonder `--reload` tijdens frontendontwikkeling om onverwachte WebSocket disconnects te voorkomen.
 
