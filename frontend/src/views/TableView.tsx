@@ -203,27 +203,17 @@ export function TableView({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
-              const isRoundScoreRow = phase === 'ROUND_OVER' && row === publicState?.roundIndex
-              return (
-                <tr
-                  key={`row-${row}`}
-                  className={isRoundScoreRow ? 'scoreboard__row--roundscore' : undefined}
-                >
-                  <th className="scoreboard__row-label">{row}</th>
-                  {playersToShow.map((player, col) => (
-                    <td
-                      key={`cell-${row}-${player.id}`}
-                      className={`scoreboard__cell ${col % 2 === 1 ? 'scoreboard__cell--alt' : ''} ${
-                        isRoundScoreRow ? 'scoreboard__cell--roundscore' : ''
-                      }`}
-                    >
-                      {isRoundScoreRow ? roundScores?.[player.id] ?? '' : ''}
-                    </td>
-                  ))}
-                </tr>
-              )
-            })}
+            {rows.map((row) => (
+              <tr key={`row-${row}`}>
+                <th className="scoreboard__row-label">{row}</th>
+                {playersToShow.map((player, col) => (
+                  <td
+                    key={`cell-${row}-${player.id}`}
+                    className={`scoreboard__cell ${col % 2 === 1 ? 'scoreboard__cell--alt' : ''}`}
+                  />
+                ))}
+              </tr>
+            ))}
             <tr>
               <th className="scoreboard__row-label">Total</th>
               {playersToShow.map((player, col) => (
@@ -235,6 +225,19 @@ export function TableView({
                 </td>
               ))}
             </tr>
+            {phase === 'ROUND_OVER' && (
+              <tr>
+                <th className="scoreboard__row-label">Round</th>
+                {playersToShow.map((player, col) => (
+                  <td
+                    key={`round-${player.id}`}
+                    className={`scoreboard__cell ${col % 2 === 1 ? 'scoreboard__cell--alt' : ''}`}
+                  >
+                    {roundScores?.[player.id] ?? '—'}
+                  </td>
+                ))}
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
