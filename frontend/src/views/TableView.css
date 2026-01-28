@@ -56,6 +56,26 @@
   cursor: not-allowed;
 }
 
+.table-view_NewRound_button {
+  position: absolute;
+  left: 955px;
+  top: 600px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid #5a5a5a;
+  background: #e6e6e6;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #2b1c12;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.table-view_NewRound_button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .table-view__error {
   margin-top: 14px;
   color: #9b1c1c;

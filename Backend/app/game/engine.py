@@ -79,6 +79,7 @@ class GameEngine:
         g.last_turns_remaining = 0
         g.round_scores = {}
         g.finisher_doubled = False
+        g.round_histrory = []
 
         g.deck = _build_skyjo_deck()
         g.discard = []
@@ -215,6 +216,7 @@ class GameEngine:
                 "finisherDoubled": g.finisher_doubled if g.phase == Phase.ROUND_OVER else None,
 
                 "roundIndex": g.round_index,
+                "roundHistory": g.round_history,
 
                 # ✅ altijd totals meegeven
                 "totalScores": g.total_scores,
@@ -469,6 +471,7 @@ class GameEngine:
         g.round_scores = scores
         g.finisher_doubled = finisher_doubled
         g.last_round_finisher_id = g.finisher_id
+        g.round_history.append(scores)
         g.table_drawn_card = None
         g.phase = Phase.ROUND_OVER
 

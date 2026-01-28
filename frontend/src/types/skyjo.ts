@@ -46,6 +46,7 @@ export type GamePublicState = {
   roundScores: Record<string, number> | null
   finisherDoubled: boolean | null
   roundIndex: number
+  roundHistory: Array<Record<string, number>>
   totalScores: Record<string, number>
   winnerId: string | null
   rankedTotals: RankedTotal[] | null

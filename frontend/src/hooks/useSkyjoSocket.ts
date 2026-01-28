@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClientMessage, ServerMessage } from '../types/skyjo'
 
-const WS_URL = 'ws://127.0.0.1:8001/ws'
+const WS_URL =
+  (window.location.protocol === 'https:' ? 'wss://' : 'ws://') +
+  window.location.host +
+  '/ws'
+
 
 type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'error'
 

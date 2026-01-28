@@ -109,6 +109,8 @@ export function TableView({
   const playersToShow = useMemo(() => players.slice(0, 4), [players])
   const rows = useMemo(() => Array.from({ length: 10 }, (_, i) => i + 1), [])
   const totalScores = publicState?.totalScores ?? {}
+  const roundHistory = publicState?.roundHistory ?? []
+  const lastCompletedRoundIndex = roundHistory.length
   const nextRoundToken = useMemo(() => {
     if (!tableCode) return null
     for (const player of players) {
@@ -203,8 +205,8 @@ export function TableView({
           </thead>
           <tbody>
             {rows.map((row) => {
-              const isRoundScoreRow =
-                publicState?.phase === 'ROUND_OVER' && row === publicState.roundIndex
+              const scoresForRow = roundHistory[row - 1] ?? null
+              const isRoundScoreRow = row === lastCompletedRoundIndex
               return (
                 <tr
                   key={`row-${row}`}
@@ -218,7 +220,7 @@ export function TableView({
                         isRoundScoreRow ? 'scoreboard__cell--roundscore' : ''
                       }`}
                     >
-                      {isRoundScoreRow ? publicState?.roundScores?.[player.id] ?? '' : ''}
+                      {scoresForRow ? scoresForRow[player.id] ?? '' : ''}
                     </td>
                   ))}
                 </tr>
@@ -243,7 +245,7 @@ export function TableView({
       {phase === 'ROUND_OVER' && (
         <button
           type="button"
-          className="table-view__button"
+          className="table-view_NewRound_button"
           onClick={() => {
             if (!tableCode || !nextRoundToken || socket.status !== 'open' || nextRoundClicked) return
             setNextRoundClicked(true)

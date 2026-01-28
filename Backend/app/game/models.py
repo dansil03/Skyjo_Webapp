@@ -60,6 +60,7 @@ class Game:
     round_index: int = 1
     total_scores: Dict[str, int] = field(default_factory=dict)
     last_round_finisher_id: Optional[str] = None
+    round_history: List[Dict[str, int]] = field(default_factory=list)
 
     def new_player_id(self) -> str:
         return uuid.uuid4().hex[:12]

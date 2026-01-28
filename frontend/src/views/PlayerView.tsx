@@ -7,7 +7,7 @@ import {
   saveTableSelection,
   type TableSelectionState,
 } from '../lib/storage'
-import type { GameMeta, GamePublicState, PlayerPrivateState } from '../types/skyjo'
+import type { GameMeta, GamePublicState, GridCell, PlayerPrivateState } from '../types/skyjo'
 import './PlayerView.css'
 
 type PlayerSession = {
@@ -32,6 +32,13 @@ type PlayerViewProps = {
 
 const GRID_SIZE = 12
 
+const emptyGrid: GridCell[] = Array.from({ length: GRID_SIZE }, (_, i) => ({
+  i,
+  isRemoved: false,
+  isFaceUp: false,
+  value: null,
+}))
+
 const cardImageMap = Object.fromEntries(
   Object.entries(
     import.meta.glob<string>('../../Skyjo-karten/*.png', {
@@ -43,6 +50,13 @@ const cardImageMap = Object.fromEntries(
     return [fileName, url]
   }),
 ) as Record<string, string>
+
+const EMPTY_SELECTION: TableSelectionState = {
+  selectedSource: null,
+  deckMode: 'swap',
+  locked: false,
+  selectedValue: null,
+}
 
 export function PlayerView({
   socket,
@@ -58,12 +72,15 @@ export function PlayerView({
 }: PlayerViewProps) {
   const stored = loadPlayerStorage()
   const [code, setCode] = useState(stored.code ?? '')
-  const hasResumedRef = useRef(false)
+
   const [tableSelection, setTableSelection] = useState<TableSelectionState>(() =>
     loadTableSelection(),
   )
+
+  const hasResumedRef = useRef(false)
   const previousPlayerId = useRef<string | null>(privateMeta?.currentPlayerId ?? null)
   const lastSentSelection = useRef<string | null>(null)
+
   const { status, sendMessage } = socket
 
   const sendMessageWithLog = useCallback(
@@ -79,6 +96,7 @@ export function PlayerView({
     saveTableSelection(selection)
   }, [])
 
+  // Resume once after reload
   useEffect(() => {
     if (!playerSession?.token || !playerSession.code) {
       hasResumedRef.current = false
@@ -94,7 +112,8 @@ export function PlayerView({
     hasResumedRef.current = true
   }, [playerSession?.code, playerSession?.token, sendMessageWithLog, status])
 
-    useEffect(() => {
+  // Sync selection changes across tabs (localStorage selection)
+  useEffect(() => {
     const handleStorage = () => {
       setTableSelection(loadTableSelection())
     }
@@ -105,15 +124,13 @@ export function PlayerView({
   }, [])
 
   const currentPlayerId = privateMeta?.currentPlayerId ?? publicState?.currentPlayerId ?? null
+  const phase = privateMeta?.phase ?? publicState?.phase ?? 'LOBBY'
 
   const isMyTurn = useMemo(() => {
-    if (!currentPlayerId || !playerSession?.playerId) {
-      return false
-    }
+    if (!currentPlayerId || !playerSession?.playerId) return false
     return currentPlayerId === playerSession.playerId
   }, [currentPlayerId, playerSession?.playerId])
 
-  const phase = privateMeta?.phase ?? publicState?.phase ?? 'LOBBY'
   const canChooseSource =
     phase === 'TURN_CHOOSE_SOURCE' && isMyTurn && Boolean(playerSession?.token)
 
@@ -122,51 +139,42 @@ export function PlayerView({
 
   const hasSelection = tableSelection.selectedSource !== null
   const canGridAction = canResolveTurn && hasSelection
+
   const setupRevealsDone = privateState?.setupRevealsDone ?? 0
   const canSetupReveal =
     phase === 'SETUP_REVEAL' && Boolean(playerSession?.token) && setupRevealsDone < 2
 
-    const backImage = cardImageMap['Rückseite']
+  const backImage = cardImageMap['Rückseite']
+
+  const gridToRender = useMemo<GridCell[]>(
+    () => privateState?.grid ?? emptyGrid,
+    [privateState?.grid],
+  )
+
   const points = useMemo(() => {
-    if (!privateState?.grid) {
-      return 0
-    }
+    if (!privateState?.grid) return 0
     return privateState.grid.reduce((total, cell) => {
-      if (cell.isRemoved || !cell.isFaceUp || typeof cell.value !== 'number') {
-        return total
-      }
+      if (cell.isRemoved || !cell.isFaceUp || typeof cell.value !== 'number') return total
       return total + cell.value
     }, 0)
   }, [privateState?.grid])
 
   const statusText = useMemo(() => {
-    if (phase === 'LOBBY') {
-      return 'Warte auf Spielstart'
-    }
-    if (phase === 'SETUP_REVEAL') {
-      return 'Decke 2 Karten auf'
-    }
+    if (phase === 'LOBBY') return 'Warte auf Spielstart'
+    if (phase === 'SETUP_REVEAL') return 'Decke 2 Karten auf'
 
     if (phase === 'TURN_CHOOSE_SOURCE' || phase === 'TURN_RESOLVE') {
-      if (!isMyTurn) {
-        return 'Warte…'
-      }
-      if (tableSelection.selectedSource) {
-        return 'Wähle eine Karte'
-      }
+      if (!isMyTurn) return 'Warte…'
+      if (tableSelection.selectedSource) return 'Wähle eine Karte'
       return 'Du bist dran'
     }
-    if (phase === 'ROUND_OVER') {
-      return 'Runde beendet'
-    }
-    if (phase === 'GAME_OVER') {
-      return 'Spiel beendet'
-    }
+
+    if (phase === 'ROUND_OVER') return 'Runde beendet'
+    if (phase === 'GAME_OVER') return 'Spiel beendet'
     return ''
   }, [isMyTurn, phase, tableSelection.selectedSource])
 
-  const showActionCue = isMyTurn && hasSelection && phase === 'TURN_RESOLVE'    
-
+  const showActionCue = isMyTurn && hasSelection && phase === 'TURN_RESOLVE'
 
   useEffect(() => {
     console.log('[PlayerView] phase/current/selection', {
@@ -177,46 +185,38 @@ export function PlayerView({
     })
   }, [phase, currentPlayerId, playerSession?.playerId, tableSelection])
 
+  // Reset selection when leaving turn phases or when turn changes
   useEffect(() => {
     if (phase !== 'TURN_CHOOSE_SOURCE' && phase !== 'TURN_RESOLVE') {
-      updateTableSelection({
-        selectedSource: null,
-        deckMode: 'swap',
-        locked: false,
-        selectedValue: null,
-      })
+      updateTableSelection(EMPTY_SELECTION)
       previousPlayerId.current = currentPlayerId
       lastSentSelection.current = null
       return
     }
+
     if (previousPlayerId.current && previousPlayerId.current !== currentPlayerId) {
-      updateTableSelection({
-        selectedSource: null,
-        deckMode: 'swap',
-        locked: false,
-        selectedValue: null,
-      })
+      updateTableSelection(EMPTY_SELECTION)
       lastSentSelection.current = null
     }
+
     previousPlayerId.current = currentPlayerId
   }, [currentPlayerId, phase, updateTableSelection])
 
+  // When table selection is locked and it's my turn in choose phase, trigger backend action
   useEffect(() => {
-    if (!tableSelection.selectedSource || !tableSelection.locked) {
-      return
-    }
-    if (!canChooseSource || !playerSession?.token) {
-      return
-    }
+    if (!tableSelection.selectedSource || !tableSelection.locked) return
+    if (!canChooseSource || !playerSession?.token) return
+
     const selectionKey = `${tableSelection.selectedSource}-${currentPlayerId ?? 'none'}-${phase}`
-    if (lastSentSelection.current === selectionKey) {
-      return
-    }
+    if (lastSentSelection.current === selectionKey) return
+
     lastSentSelection.current = selectionKey
+
     if (tableSelection.selectedSource === 'deck') {
       sendMessageWithLog({ type: 'draw_from_deck', payload: { token: playerSession.token } })
       return
     }
+
     sendMessageWithLog({ type: 'take_discard', payload: { token: playerSession.token } })
   }, [
     canChooseSource,
@@ -229,13 +229,11 @@ export function PlayerView({
   ])
 
   const handleGridClick = (index: number) => {
-    if (!playerSession?.token) {
-      return
-    }
-    const cell = privateState?.grid?.[index]
-    if (!cell || cell.isRemoved) {
-      return
-    }
+    if (!playerSession?.token) return
+
+    const cell = gridToRender[index]
+    if (!cell || cell.isRemoved) return
+
     if (canSetupReveal && !cell.isFaceUp) {
       sendMessageWithLog({
         type: 'setup_reveal',
@@ -244,9 +242,7 @@ export function PlayerView({
       return
     }
 
-    if (!canResolveTurn || !tableSelection.selectedSource) {
-      return
-    }
+    if (!canResolveTurn || !tableSelection.selectedSource) return
 
     if (
       tableSelection.selectedSource === 'deck' &&
@@ -257,26 +253,17 @@ export function PlayerView({
         type: 'discard_drawn_and_reveal',
         payload: { token: playerSession.token, index },
       })
-      updateTableSelection({
-        selectedSource: null,
-        deckMode: 'swap',
-        locked: false,
-        selectedValue: null,
-      })
+      updateTableSelection(EMPTY_SELECTION)
       return
     }
 
+    // swap mode (also used for discard selection)
     if (tableSelection.deckMode === 'swap') {
       sendMessageWithLog({
         type: 'swap_into_grid',
         payload: { token: playerSession.token, index },
       })
-      updateTableSelection({
-        selectedSource: null,
-        deckMode: 'swap',
-        locked: false,
-        selectedValue: null,
-      })
+      updateTableSelection(EMPTY_SELECTION)
     }
   }
 
@@ -284,9 +271,11 @@ export function PlayerView({
     <section className="player-view">
       <div className="player-view__hud">
         <div className="player-view__points">Punkte: {points}</div>
+
         {phase === 'LOBBY' && playerSession?.name && (
           <div className="player-view__joined">joined as {playerSession.name}</div>
         )}
+
         {statusText && (
           <div
             className={`player-view__status ${
@@ -303,47 +292,44 @@ export function PlayerView({
 
       <div className="player-view__table">
         <div className={`player-grid ${showActionCue ? 'player-grid--pulse' : ''}`}>
-          {(privateState?.grid ?? Array.from({ length: GRID_SIZE }, (_, i) => ({ i }))).map(
-            (cell) => {
-              if (!('isRemoved' in cell)) {
-                return <div key={`placeholder-${cell.i}`} className="player-grid__cell" />
-              }
-              const isRightColumn = cell.i % 4 === 3
-              const canRevealCell = canSetupReveal && !cell.isFaceUp && !cell.isRemoved
-              const canResolveCell = canGridAction && !cell.isRemoved
-              const shouldRevealOnly =
-                tableSelection.selectedSource === 'deck' && tableSelection.deckMode === 'reveal'
-              const canRevealAction = canResolveCell && shouldRevealOnly && !cell.isFaceUp
-              const canSwapAction =
-                canResolveCell && (!shouldRevealOnly || tableSelection.deckMode === 'swap')
-              const isClickable = canRevealCell || canRevealAction || canSwapAction
-              const actionClass = isClickable ? 'player-grid__cell--action' : ''
+          {gridToRender.map((cell) => {
+            const isRightColumn = cell.i % 4 === 3
+            const canRevealCell = canSetupReveal && !cell.isFaceUp && !cell.isRemoved
+            const canResolveCell = canGridAction && !cell.isRemoved
 
-              const cardImage = cell.isRemoved
-                ? null
-                : cell.isFaceUp && cell.value !== null
-                  ? cardImageMap[String(cell.value)]
-                  : backImage
+            const shouldRevealOnly =
+              tableSelection.selectedSource === 'deck' && tableSelection.deckMode === 'reveal'
+            const canRevealAction = canResolveCell && shouldRevealOnly && !cell.isFaceUp
+            const canSwapAction =
+              canResolveCell && (!shouldRevealOnly || tableSelection.deckMode === 'swap')
 
-              return (
-                <button
-                  key={cell.i}
-                  type="button"
-                  className={`player-grid__cell ${actionClass} ${
-                    cell.isRemoved ? 'player-grid__cell--removed' : ''
-                  } ${isRightColumn ? 'player-grid__cell--right' : ''}`}
-                  onClick={() => handleGridClick(cell.i)}
-                  disabled={!isClickable}
-                >
-                  {cardImage ? (
-                    <img className="player-grid__image" src={cardImage} alt="Spielkarte" />
-                  ) : (
-                    <span className="player-grid__removed-label">entfernt</span>
-                  )}
-                </button>
-              )
-            },
-          )}
+            const isClickable = canRevealCell || canRevealAction || canSwapAction
+            const actionClass = isClickable ? 'player-grid__cell--action' : ''
+
+            const cardImage = cell.isRemoved
+              ? null
+              : cell.isFaceUp && cell.value !== null
+                ? cardImageMap[String(cell.value)]
+                : backImage
+
+            return (
+              <button
+                key={cell.i}
+                type="button"
+                className={`player-grid__cell ${actionClass} ${
+                  cell.isRemoved ? 'player-grid__cell--removed' : ''
+                } ${isRightColumn ? 'player-grid__cell--right' : ''}`}
+                onClick={() => handleGridClick(cell.i)}
+                disabled={!isClickable}
+              >
+                {cardImage ? (
+                  <img className="player-grid__image" src={cardImage} alt="Spielkarte" />
+                ) : (
+                  <span className="player-grid__removed-label">entfernt</span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -352,16 +338,9 @@ export function PlayerView({
           type="button"
           className="player-view__action-button"
           onClick={() => {
-            if (!playerSession?.token) {
-              return
-            }
+            if (!playerSession?.token) return
             sendMessageWithLog({ type: 'discard_drawn', payload: { token: playerSession.token } })
-            updateTableSelection({
-              selectedSource: null,
-              deckMode: 'swap',
-              locked: false,
-              selectedValue: null,
-            })
+            updateTableSelection(EMPTY_SELECTION)
           }}
         >
           Discard drawn
