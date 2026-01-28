@@ -108,6 +108,16 @@
   background: #dcdcdc;
 }
 
+.scoreboard__row--roundscore .scoreboard__row-label {
+  background: #bdbdbd;
+  font-weight: 700;
+}
+
+.scoreboard__cell--roundscore {
+  background: #f4e6b8;
+  font-weight: 700;
+}
+
 .table-view__status {
   position: absolute;
   left: 140px;
