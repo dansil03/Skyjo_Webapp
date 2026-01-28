@@ -28,6 +28,8 @@ class Player:
 
     drawn_card: Optional[int] = None
     setup_reveals_done: int = 0
+    setup_revealed_indices: List[int] = field(default_factory=list)
+    setup_done_order: Optional[int] = None
 
 
 @dataclass

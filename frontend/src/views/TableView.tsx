@@ -42,6 +42,7 @@ export function TableView({
   onClearTableCode,
 }: TableViewProps) {
   const [selection, setSelection] = useState<SelectionWithValue>(() => loadTableSelection() as any)
+  const [nextRoundClicked, setNextRoundClicked] = useState(false)
 
   // Force rerender when player mirror updates (same-tab scenario) or selection updates from other tabs.
   const [, forceRerender] = useState(0)
@@ -73,6 +74,12 @@ export function TableView({
     return () => window.removeEventListener('skyjo-player-mirror', handleMirror as EventListener)
   }, [])
 
+  useEffect(() => {
+    if (phase !== 'ROUND_OVER') {
+      setNextRoundClicked(false)
+    }
+  }, [phase])
+
   // Reset selection on phase changes / turn changes
   useEffect(() => {
     if (phase !== 'TURN_CHOOSE_SOURCE' && phase !== 'TURN_RESOLVE') {
@@ -101,6 +108,16 @@ export function TableView({
   const players = useMemo(() => publicState?.players ?? [], [publicState])
   const playersToShow = useMemo(() => players.slice(0, 4), [players])
   const rows = useMemo(() => Array.from({ length: 10 }, (_, i) => i + 1), [])
+  const totalScores = publicState?.totalScores ?? {}
+  const roundScores = publicState?.roundScores ?? null
+  const nextRoundToken = useMemo(() => {
+    if (!tableCode) return null
+    for (const player of players) {
+      const token = loadPlayerTokenForGame(tableCode, player.id)
+      if (token) return token
+    }
+    return null
+  }, [players, tableCode])
 
   const currentPlayerName = useMemo(() => {
     if (!currentPlayerId) return '—'
@@ -186,22 +203,57 @@ export function TableView({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={`row-${row}`}>
-                <th className="scoreboard__row-label">{row}</th>
-                {playersToShow.map((player, col) => (
-                  <td
-                    key={`cell-${row}-${player.id}`}
-                    className={`scoreboard__cell ${col % 2 === 1 ? 'scoreboard__cell--alt' : ''}`}
-                  />
-                ))}
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const isRoundScoreRow = phase === 'ROUND_OVER' && row === publicState?.roundIndex
+              return (
+                <tr
+                  key={`row-${row}`}
+                  className={isRoundScoreRow ? 'scoreboard__row--roundscore' : undefined}
+                >
+                  <th className="scoreboard__row-label">{row}</th>
+                  {playersToShow.map((player, col) => (
+                    <td
+                      key={`cell-${row}-${player.id}`}
+                      className={`scoreboard__cell ${col % 2 === 1 ? 'scoreboard__cell--alt' : ''} ${
+                        isRoundScoreRow ? 'scoreboard__cell--roundscore' : ''
+                      }`}
+                    >
+                      {isRoundScoreRow ? roundScores?.[player.id] ?? '' : ''}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })}
+            <tr>
+              <th className="scoreboard__row-label">Total</th>
+              {playersToShow.map((player, col) => (
+                <td
+                  key={`total-${player.id}`}
+                  className={`scoreboard__cell ${col % 2 === 1 ? 'scoreboard__cell--alt' : ''}`}
+                >
+                  {totalScores[player.id] ?? 0}
+                </td>
+              ))}
+            </tr>
           </tbody>
         </table>
       </div>
 
       <div className="table-view__status">{currentPlayerName} ist an der Reihe</div>
+      {phase === 'ROUND_OVER' && (
+        <button
+          type="button"
+          className="table-view__button"
+          onClick={() => {
+            if (!tableCode || !nextRoundToken || socket.status !== 'open' || nextRoundClicked) return
+            setNextRoundClicked(true)
+            socket.sendMessage({ type: 'start_new_round', payload: { token: nextRoundToken } })
+          }}
+          disabled={!tableCode || !nextRoundToken || socket.status !== 'open' || nextRoundClicked}
+        >
+          Nächste Runde starten
+        </button>
+      )}
 
       {phase === 'LOBBY' && (
         <div className="table-view__ready">
