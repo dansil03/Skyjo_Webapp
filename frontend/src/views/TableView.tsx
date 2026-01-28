@@ -109,7 +109,6 @@ export function TableView({
   const playersToShow = useMemo(() => players.slice(0, 4), [players])
   const rows = useMemo(() => Array.from({ length: 10 }, (_, i) => i + 1), [])
   const totalScores = publicState?.totalScores ?? {}
-  const roundScores = publicState?.roundScores ?? null
   const nextRoundToken = useMemo(() => {
     if (!tableCode) return null
     for (const player of players) {
@@ -203,17 +202,28 @@ export function TableView({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={`row-${row}`}>
-                <th className="scoreboard__row-label">{row}</th>
-                {playersToShow.map((player, col) => (
-                  <td
-                    key={`cell-${row}-${player.id}`}
-                    className={`scoreboard__cell ${col % 2 === 1 ? 'scoreboard__cell--alt' : ''}`}
-                  />
-                ))}
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const isRoundScoreRow =
+                publicState?.phase === 'ROUND_OVER' && row === publicState.roundIndex
+              return (
+                <tr
+                  key={`row-${row}`}
+                  className={isRoundScoreRow ? 'scoreboard__row--roundscore' : ''}
+                >
+                  <th className="scoreboard__row-label">{row}</th>
+                  {playersToShow.map((player, col) => (
+                    <td
+                      key={`cell-${row}-${player.id}`}
+                      className={`scoreboard__cell ${col % 2 === 1 ? 'scoreboard__cell--alt' : ''} ${
+                        isRoundScoreRow ? 'scoreboard__cell--roundscore' : ''
+                      }`}
+                    >
+                      {isRoundScoreRow ? publicState?.roundScores?.[player.id] ?? '' : ''}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })}
             <tr>
               <th className="scoreboard__row-label">Total</th>
               {playersToShow.map((player, col) => (
@@ -225,19 +235,6 @@ export function TableView({
                 </td>
               ))}
             </tr>
-            {phase === 'ROUND_OVER' && (
-              <tr>
-                <th className="scoreboard__row-label">Round</th>
-                {playersToShow.map((player, col) => (
-                  <td
-                    key={`round-${player.id}`}
-                    className={`scoreboard__cell ${col % 2 === 1 ? 'scoreboard__cell--alt' : ''}`}
-                  >
-                    {roundScores?.[player.id] ?? '—'}
-                  </td>
-                ))}
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
