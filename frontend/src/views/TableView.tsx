@@ -1,11 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { useSkyjoSocket } from '../hooks/useSkyjoSocket'
-import {
-  clearTableStorage,
-  loadTableSelection,
-  loadPlayerTokenForGame,
-  saveTableSelection,
-} from '../lib/storage'
+import { clearTableStorage, loadTableSelection, saveTableSelection } from '../lib/storage'
 import type { GamePublicState } from '../types/skyjo'
 import './TableView.css'
 
@@ -42,7 +37,6 @@ export function TableView({
   onClearTableCode,
 }: TableViewProps) {
   const [selection, setSelection] = useState<SelectionWithValue>(() => loadTableSelection() as any)
-  const [nextRoundClicked, setNextRoundClicked] = useState(false)
 
   // Force rerender when player mirror updates (same-tab scenario) or selection updates from other tabs.
   const [, forceRerender] = useState(0)
@@ -73,12 +67,6 @@ export function TableView({
     window.addEventListener('skyjo-player-mirror', handleMirror as EventListener)
     return () => window.removeEventListener('skyjo-player-mirror', handleMirror as EventListener)
   }, [])
-
-  useEffect(() => {
-    if (phase !== 'ROUND_OVER') {
-      setNextRoundClicked(false)
-    }
-  }, [phase])
 
   // Reset selection on phase changes / turn changes
   useEffect(() => {
@@ -111,14 +99,6 @@ export function TableView({
   const totalScores = publicState?.totalScores ?? {}
   const roundHistory = publicState?.roundHistory ?? []
   const lastCompletedRoundIndex = roundHistory.length
-  const nextRoundToken = useMemo(() => {
-    if (!tableCode) return null
-    for (const player of players) {
-      const token = loadPlayerTokenForGame(tableCode, player.id)
-      if (token) return token
-    }
-    return null
-  }, [players, tableCode])
 
   const currentPlayerName = useMemo(() => {
     if (!currentPlayerId) return '—'
@@ -242,20 +222,6 @@ export function TableView({
       </div>
 
       <div className="table-view__status">{currentPlayerName} ist an der Reihe</div>
-      {phase === 'ROUND_OVER' && (
-        <button
-          type="button"
-          className="table-view_NewRound_button"
-          onClick={() => {
-            if (!tableCode || !nextRoundToken || socket.status !== 'open' || nextRoundClicked) return
-            setNextRoundClicked(true)
-            socket.sendMessage({ type: 'start_new_round', payload: { token: nextRoundToken } })
-          }}
-          disabled={!tableCode || !nextRoundToken || socket.status !== 'open' || nextRoundClicked}
-        >
-          Nächste Runde starten
-        </button>
-      )}
 
       {phase === 'LOBBY' && (
         <div className="table-view__ready">
@@ -263,34 +229,12 @@ export function TableView({
           <ul className="table-view__ready-list">
             {players.length === 0 && <li className="table-view__ready-item">Noch keine Spieler.</li>}
             {players.map((player) => {
-              const tokenForPlayer = tableCode ? loadPlayerTokenForGame(tableCode, player.id) : null
-              const hasToken = Boolean(tokenForPlayer)
-
               return (
                 <li key={player.id} className="table-view__ready-item">
                   <span className="table-view__ready-name">{player.name}</span>
                   <span className="table-view__ready-state">
                     {player.ready ? 'bereit' : 'nicht bereit'}
                   </span>
-
-                  {hasToken ? (
-                    <button
-                      type="button"
-                      className="table-view__ready-button"
-                      onClick={() => {
-                        if (!tokenForPlayer || player.ready) return
-                        socket.sendMessage({
-                          type: 'set_ready',
-                          payload: { token: tokenForPlayer, ready: true },
-                        })
-                      }}
-                      disabled={player.ready}
-                    >
-                      {player.ready ? 'Bereit' : 'Bereit machen'}
-                    </button>
-                  ) : (
-                    <span className="table-view__ready-readonly">read-only</span>
-                  )}
                 </li>
               )
             })}

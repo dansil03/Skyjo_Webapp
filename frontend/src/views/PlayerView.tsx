@@ -72,6 +72,7 @@ export function PlayerView({
 }: PlayerViewProps) {
   const stored = loadPlayerStorage()
   const [code, setCode] = useState(stored.code ?? '')
+  const [nextRoundClicked, setNextRoundClicked] = useState(false)
 
   const [tableSelection, setTableSelection] = useState<TableSelectionState>(() =>
     loadTableSelection(),
@@ -125,6 +126,13 @@ export function PlayerView({
 
   const currentPlayerId = privateMeta?.currentPlayerId ?? publicState?.currentPlayerId ?? null
   const phase = privateMeta?.phase ?? publicState?.phase ?? 'LOBBY'
+  const isSocketOpen = status === 'open'
+
+  const playerReady = useMemo(() => {
+    if (!playerSession?.playerId) return false
+    const match = publicState?.players?.find((player) => player.id === playerSession.playerId)
+    return match?.ready ?? false
+  }, [publicState?.players, playerSession?.playerId])
 
   const isMyTurn = useMemo(() => {
     if (!currentPlayerId || !playerSession?.playerId) return false
@@ -184,6 +192,12 @@ export function PlayerView({
       selection: tableSelection,
     })
   }, [phase, currentPlayerId, playerSession?.playerId, tableSelection])
+
+  useEffect(() => {
+    if (phase !== 'ROUND_OVER') {
+      setNextRoundClicked(false)
+    }
+  }, [phase])
 
   // Reset selection when leaving turn phases or when turn changes
   useEffect(() => {
@@ -290,6 +304,28 @@ export function PlayerView({
         )}
       </div>
 
+      {phase === 'LOBBY' && playerSession?.token && (
+        <div className="player-view__ready">
+          <button
+            type="button"
+            className="player-view__ready-button"
+            onClick={() => {
+              if (playerReady || !playerSession?.token) return
+              sendMessageWithLog({
+                type: 'set_ready',
+                payload: { token: playerSession.token, ready: true },
+              })
+            }}
+            disabled={!isSocketOpen || playerReady}
+          >
+            {playerReady ? 'Bereit' : 'Bereit machen'}
+          </button>
+          {playerReady && (
+            <span className="player-view__ready-status">Waiting for other players…</span>
+          )}
+        </div>
+      )}
+
       <div className="player-view__table">
         <div className={`player-grid ${showActionCue ? 'player-grid--pulse' : ''}`}>
           {gridToRender.map((cell) => {
@@ -344,6 +380,21 @@ export function PlayerView({
           }}
         >
           Discard drawn
+        </button>
+      )}
+
+      {phase === 'ROUND_OVER' && playerSession?.token && (
+        <button
+          type="button"
+          className="player-view__action-button"
+          onClick={() => {
+            if (!playerSession?.token || !isSocketOpen || nextRoundClicked) return
+            setNextRoundClicked(true)
+            sendMessageWithLog({ type: 'start_new_round', payload: { token: playerSession.token } })
+          }}
+          disabled={!isSocketOpen || nextRoundClicked}
+        >
+          Nächste Runde starten
         </button>
       )}
 
