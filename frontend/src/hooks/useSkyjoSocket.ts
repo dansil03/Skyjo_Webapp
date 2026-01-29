@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ClientMessage, ServerMessage } from '../types/skyjo'
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://127.0.0.1:8001/ws'
+
+const WS_URL =
+  (import.meta.env.VITE_WS_URL as string | undefined) ??
+  `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:8001/ws`
+
+
 
 
 type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'error'

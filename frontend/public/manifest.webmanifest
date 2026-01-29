@@ -1,0 +1,9 @@
+{
+  "name": "Skyjo Web",
+  "short_name": "Skyjo",
+  "start_url": "/?mode=player",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "landscape"
+}
