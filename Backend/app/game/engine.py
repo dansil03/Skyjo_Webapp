@@ -84,6 +84,7 @@ class GameEngine:
         g.deck = _build_skyjo_deck()
         g.discard = []
         g.table_drawn_card = None
+        self._reset_table_selection()
         self._setup_done_counter = 0
 
         for p in g.players:
@@ -133,6 +134,7 @@ class GameEngine:
         if self._all_setup_done():
             g.current_player_idx = self._select_starting_player_after_setup()
             g.phase = Phase.TURN_CHOOSE_SOURCE
+            self._reset_table_selection()
 
         return removed_events
 
@@ -207,6 +209,8 @@ class GameEngine:
                 "deckCount": len(g.deck),
                 "discardTop": g.discard[-1] if g.discard else None,
                 "tableDrawnCard": g.table_drawn_card if g.phase == Phase.TURN_RESOLVE else None,
+                "tableSelectedSource": g.table_selected_source,
+                "tableDeckMode": g.table_deck_mode,
                 "currentPlayerId": current_id,
                 "finalRound": g.final_round,
                 "finisherId": g.finisher_id,
@@ -311,6 +315,28 @@ class GameEngine:
     # ---------------------------
     # Turns
     # ---------------------------
+    def set_table_selection(self, source: Optional[str]) -> None:
+        self._require_not_round_over()
+        if self.game.phase not in (Phase.TURN_CHOOSE_SOURCE, Phase.TURN_RESOLVE):
+            raise ValueError("Cannot select source right now")
+        if source not in ("deck", "discard", None):
+            raise ValueError("Invalid selection source")
+
+        self.game.table_selected_source = source
+        if source != "deck":
+            self.game.table_deck_mode = "swap"
+
+    def set_table_deck_mode(self, mode: str) -> None:
+        self._require_not_round_over()
+        if self.game.phase not in (Phase.TURN_CHOOSE_SOURCE, Phase.TURN_RESOLVE):
+            raise ValueError("Cannot set deck mode right now")
+        if mode not in ("swap", "reveal"):
+            raise ValueError("Invalid deck mode")
+        if self.game.table_selected_source != "deck":
+            raise ValueError("Deck mode only valid when deck is selected")
+
+        self.game.table_deck_mode = mode
+
     def draw_from_deck(self, player_id: str) -> int:
         self._require_not_round_over()
         self._require_phase(Phase.TURN_CHOOSE_SOURCE)
@@ -473,6 +499,7 @@ class GameEngine:
         g.last_round_finisher_id = g.finisher_id
         g.round_history.append(scores)
         g.table_drawn_card = None
+        self._reset_table_selection()
         g.phase = Phase.ROUND_OVER
 
         self._events.append({
@@ -538,6 +565,7 @@ class GameEngine:
         if any(score >= threshold for score in g.total_scores.values()):
             g.phase = Phase.GAME_OVER
             g.table_drawn_card = None
+            self._reset_table_selection()
             winner_id, ranked_totals = self._compute_winner_and_ranking()
 
             self._events.append({
@@ -561,6 +589,7 @@ class GameEngine:
         g.deck = _build_skyjo_deck()
         g.discard = []
         g.table_drawn_card = None
+        self._reset_table_selection()
         self._setup_done_counter = 0
 
         for p in g.players:
@@ -611,6 +640,10 @@ class GameEngine:
     # ---------------------------
     # Internal helpers
     # ---------------------------
+    def _reset_table_selection(self) -> None:
+        self.game.table_selected_source = None
+        self.game.table_deck_mode = "swap"
+
     def _require_not_round_over(self) -> None:
         if self.game.phase == Phase.ROUND_OVER:
             raise ValueError("Round is over")
@@ -631,6 +664,7 @@ class GameEngine:
     def _advance_turn(self) -> None:
         self.game.current_player_idx = (self.game.current_player_idx + 1) % len(self.game.players)
         self.game.phase = Phase.TURN_CHOOSE_SOURCE
+        self._reset_table_selection()
 
     def _get_player(self, player_id: str) -> Player:
         for p in self.game.players:
