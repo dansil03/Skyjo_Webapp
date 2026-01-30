@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { useSkyjoSocket } from '../hooks/useSkyjoSocket'
-import {
-  clearPlayerStorage,
-  loadPlayerStorage,
-  loadTableSelection,
-  saveTableSelection,
-  type TableSelectionState,
-} from '../lib/storage'
+import { clearPlayerStorage, loadPlayerStorage } from '../lib/storage'
 import type { GameMeta, GamePublicState, GridCell, PlayerPrivateState } from '../types/skyjo'
 import './PlayerView.css'
 
@@ -51,13 +45,6 @@ const cardImageMap = Object.fromEntries(
   }),
 ) as Record<string, string>
 
-const EMPTY_SELECTION: TableSelectionState = {
-  selectedSource: null,
-  deckMode: 'swap',
-  locked: false,
-  selectedValue: null,
-}
-
 export function PlayerView({
   socket,
   publicState,
@@ -74,12 +61,7 @@ export function PlayerView({
   const [code, setCode] = useState(stored.code ?? '')
   const [nextRoundClicked, setNextRoundClicked] = useState(false)
 
-  const [tableSelection, setTableSelection] = useState<TableSelectionState>(() =>
-    loadTableSelection(),
-  )
-
   const hasResumedRef = useRef(false)
-  const previousPlayerId = useRef<string | null>(privateMeta?.currentPlayerId ?? null)
   const lastSentSelection = useRef<string | null>(null)
 
   const { status, sendMessage } = socket
@@ -91,11 +73,6 @@ export function PlayerView({
     },
     [sendMessage],
   )
-
-  const updateTableSelection = useCallback((selection: TableSelectionState) => {
-    setTableSelection(selection)
-    saveTableSelection(selection)
-  }, [])
 
   // Resume once after reload
   useEffect(() => {
@@ -113,20 +90,11 @@ export function PlayerView({
     hasResumedRef.current = true
   }, [playerSession?.code, playerSession?.token, sendMessageWithLog, status])
 
-  // Sync selection changes across tabs (localStorage selection)
-  useEffect(() => {
-    const handleStorage = () => {
-      setTableSelection(loadTableSelection())
-    }
-    window.addEventListener('storage', handleStorage)
-    return () => {
-      window.removeEventListener('storage', handleStorage)
-    }
-  }, [])
-
   const currentPlayerId = privateMeta?.currentPlayerId ?? publicState?.currentPlayerId ?? null
   const phase = privateMeta?.phase ?? publicState?.phase ?? 'LOBBY'
   const isSocketOpen = status === 'open'
+  const tableSelectedSource = publicState?.tableSelectedSource ?? null
+  const tableDeckMode = publicState?.tableDeckMode ?? 'swap'
 
   const playerReady = useMemo(() => {
     if (!playerSession?.playerId) return false
@@ -145,7 +113,7 @@ export function PlayerView({
   const canResolveTurn =
     phase === 'TURN_RESOLVE' && isMyTurn && privateState?.drawnCard !== null
 
-  const hasSelection = tableSelection.selectedSource !== null
+  const hasSelection = tableSelectedSource !== null
   const canGridAction = canResolveTurn && hasSelection
 
   const setupRevealsDone = privateState?.setupRevealsDone ?? 0
@@ -173,14 +141,14 @@ export function PlayerView({
 
     if (phase === 'TURN_CHOOSE_SOURCE' || phase === 'TURN_RESOLVE') {
       if (!isMyTurn) return 'Warte…'
-      if (tableSelection.selectedSource) return 'Wähle eine Karte'
+      if (tableSelectedSource) return 'Wähle eine Karte'
       return 'Du bist dran'
     }
 
     if (phase === 'ROUND_OVER') return 'Runde beendet'
     if (phase === 'GAME_OVER') return 'Spiel beendet'
     return ''
-  }, [isMyTurn, phase, tableSelection.selectedSource])
+  }, [isMyTurn, phase, tableSelectedSource])
 
   const showActionCue = isMyTurn && hasSelection && phase === 'TURN_RESOLVE'
 
@@ -189,9 +157,9 @@ export function PlayerView({
       phase,
       currentPlayerId: currentPlayerId ?? null,
       playerId: playerSession?.playerId ?? null,
-      selection: tableSelection,
+      selection: tableSelectedSource,
     })
-  }, [phase, currentPlayerId, playerSession?.playerId, tableSelection])
+  }, [phase, currentPlayerId, playerSession?.playerId, tableSelectedSource])
 
   useEffect(() => {
     if (phase !== 'ROUND_OVER') {
@@ -199,34 +167,17 @@ export function PlayerView({
     }
   }, [phase])
 
-  // Reset selection when leaving turn phases or when turn changes
+  // When table selection is set and it's my turn in choose phase, trigger backend action
   useEffect(() => {
-    if (phase !== 'TURN_CHOOSE_SOURCE' && phase !== 'TURN_RESOLVE') {
-      updateTableSelection(EMPTY_SELECTION)
-      previousPlayerId.current = currentPlayerId
-      lastSentSelection.current = null
-      return
-    }
-
-    if (previousPlayerId.current && previousPlayerId.current !== currentPlayerId) {
-      updateTableSelection(EMPTY_SELECTION)
-      lastSentSelection.current = null
-    }
-
-    previousPlayerId.current = currentPlayerId
-  }, [currentPlayerId, phase, updateTableSelection])
-
-  // When table selection is locked and it's my turn in choose phase, trigger backend action
-  useEffect(() => {
-    if (!tableSelection.selectedSource || !tableSelection.locked) return
+    if (!tableSelectedSource) return
     if (!canChooseSource || !playerSession?.token) return
 
-    const selectionKey = `${tableSelection.selectedSource}-${currentPlayerId ?? 'none'}-${phase}`
+    const selectionKey = `${tableSelectedSource}-${currentPlayerId ?? 'none'}-${phase}`
     if (lastSentSelection.current === selectionKey) return
 
     lastSentSelection.current = selectionKey
 
-    if (tableSelection.selectedSource === 'deck') {
+    if (tableSelectedSource === 'deck') {
       sendMessageWithLog({ type: 'draw_from_deck', payload: { token: playerSession.token } })
       return
     }
@@ -237,8 +188,7 @@ export function PlayerView({
     currentPlayerId,
     phase,
     playerSession?.token,
-    tableSelection.locked,
-    tableSelection.selectedSource,
+    tableSelectedSource,
     sendMessageWithLog,
   ])
 
@@ -256,28 +206,26 @@ export function PlayerView({
       return
     }
 
-    if (!canResolveTurn || !tableSelection.selectedSource) return
+    if (!canResolveTurn || !tableSelectedSource) return
 
     if (
-      tableSelection.selectedSource === 'deck' &&
-      tableSelection.deckMode === 'reveal' &&
+      tableSelectedSource === 'deck' &&
+      tableDeckMode === 'reveal' &&
       !cell.isFaceUp
     ) {
       sendMessageWithLog({
         type: 'discard_drawn_and_reveal',
         payload: { token: playerSession.token, index },
       })
-      updateTableSelection(EMPTY_SELECTION)
       return
     }
 
     // swap mode (also used for discard selection)
-    if (tableSelection.deckMode === 'swap') {
+    if (tableDeckMode === 'swap') {
       sendMessageWithLog({
         type: 'swap_into_grid',
         payload: { token: playerSession.token, index },
       })
-      updateTableSelection(EMPTY_SELECTION)
     }
   }
 
@@ -294,7 +242,7 @@ export function PlayerView({
           <div
             className={`player-view__status ${
               showActionCue ||
-              (phase === 'TURN_CHOOSE_SOURCE' && isMyTurn && tableSelection.selectedSource)
+              (phase === 'TURN_CHOOSE_SOURCE' && isMyTurn && tableSelectedSource)
                 ? 'player-view__status--active'
                 : ''
             }`}
@@ -334,10 +282,10 @@ export function PlayerView({
             const canResolveCell = canGridAction && !cell.isRemoved
 
             const shouldRevealOnly =
-              tableSelection.selectedSource === 'deck' && tableSelection.deckMode === 'reveal'
+              tableSelectedSource === 'deck' && tableDeckMode === 'reveal'
             const canRevealAction = canResolveCell && shouldRevealOnly && !cell.isFaceUp
             const canSwapAction =
-              canResolveCell && (!shouldRevealOnly || tableSelection.deckMode === 'swap')
+              canResolveCell && (!shouldRevealOnly || tableDeckMode === 'swap')
 
             const isClickable = canRevealCell || canRevealAction || canSwapAction
             const actionClass = isClickable ? 'player-grid__cell--action' : ''
@@ -369,14 +317,13 @@ export function PlayerView({
         </div>
       </div>
 
-      {canResolveTurn && tableSelection.selectedSource === 'deck' && (
+      {canResolveTurn && tableSelectedSource === 'deck' && (
         <button
           type="button"
           className="player-view__action-button"
           onClick={() => {
             if (!playerSession?.token) return
             sendMessageWithLog({ type: 'discard_drawn', payload: { token: playerSession.token } })
-            updateTableSelection(EMPTY_SELECTION)
           }}
         >
           Discard drawn

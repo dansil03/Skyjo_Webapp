@@ -6,6 +6,10 @@ export type GamePhase =
   | 'ROUND_OVER'
   | 'GAME_OVER'
 
+export type TableSelectedSource = 'deck' | 'discard' | null
+
+export type TableDeckMode = 'swap' | 'reveal'
+
 export type ClientMessage =
   | { type: 'create_table'; payload: Record<string, never> }
   | { type: 'join_game'; payload: { code: string; name: string } }
@@ -18,6 +22,8 @@ export type ClientMessage =
   | { type: 'discard_drawn_and_reveal'; payload: { token: string; index: number } }
   | { type: 'swap_into_grid'; payload: { token: string; index: number } }
   | { type: 'start_new_round'; payload: { token: string } }
+  | { type: 'table_set_selection'; payload: { source: TableSelectedSource } }
+  | { type: 'table_set_deck_mode'; payload: { mode: TableDeckMode } }
 
 export type RankedTotal = {
   playerId: string
@@ -39,6 +45,8 @@ export type GamePublicState = {
   deckCount: number
   discardTop: number | null
   tableDrawnCard: number | null
+  tableSelectedSource: TableSelectedSource
+  tableDeckMode: TableDeckMode
   currentPlayerId: string | null
   finalRound: boolean
   finisherId: string | null

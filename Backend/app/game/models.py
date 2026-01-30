@@ -42,6 +42,8 @@ class Game:
     deck: List[int] = field(default_factory=list)
     discard: List[int] = field(default_factory=list)
     table_drawn_card: Optional[int] = None
+    table_selected_source: Optional[str] = None
+    table_deck_mode: str = "swap"
 
     current_player_idx: int = 0
 

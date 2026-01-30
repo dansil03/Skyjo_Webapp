@@ -317,6 +317,38 @@ async def websocket_endpoint(ws: WebSocket):
                 continue
 
             # -------------------------
+            # TABLE: set selection
+            # -------------------------
+            if t == "table_set_selection":
+                source = p.get("source", None)
+                if source is not None:
+                    source = str(source)
+
+                try:
+                    engine.set_table_selection(source)
+                except Exception as e:
+                    await _send(ws, "error", {"message": str(e)})
+                    continue
+
+                await _broadcast(code, "game_public_state", engine.public_state())
+                continue
+
+            # -------------------------
+            # TABLE: set deck mode
+            # -------------------------
+            if t == "table_set_deck_mode":
+                mode = str(p.get("mode", ""))
+
+                try:
+                    engine.set_table_deck_mode(mode)
+                except Exception as e:
+                    await _send(ws, "error", {"message": str(e)})
+                    continue
+
+                await _broadcast(code, "game_public_state", engine.public_state())
+                continue
+
+            # -------------------------
             # TURN: draw from deck
             # -------------------------
             if t == "draw_from_deck":
